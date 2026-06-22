@@ -1,0 +1,643 @@
+/* ── Google Fonts loaded in _document.js ────────────────────────────────── */
+/* Bebas Neue → display/numerals only                                        */
+/* IBM Plex Sans Thai → body / UI (Thai + Latin)                             */
+/* IBM Plex Mono → codes, timestamps, data                                   */
+
+/* ── Token system ───────────────────────────────────────────────────────── */
+:root {
+  --stage: #15171c;        /* deep backstage black — page background         */
+  --stage-raised: #1f2229; /* slightly lighter — cards on dark bg            */
+  --stage-border: #2e313a; /* subtle dividers                                */
+  --marquee: #e8b23d;      /* gold — primary accent, CTAs                   */
+  --marquee-soft: #f2d38a; /* pale gold — secondary accent                  */
+  --paper: #f6f2e9;        /* warm cream — card surfaces on light areas      */
+  --paper-dim: #ede8da;    /* slightly darker cream                          */
+  --ink: #15171c;          /* near-black text on light surfaces              */
+  --ink-mid: #4a4d58;      /* mid-grey subtext on light surfaces             */
+  --live-red: #d6493b;     /* on-air red — live / destructive                */
+  --ok-green: #4f9d69;     /* present / success                              */
+  --radius: 4px;
+  --radius-lg: 8px;
+}
+
+/* ── Reset & base ───────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 16px; }
+
+body {
+  font-family: 'IBM Plex Sans Thai', 'IBM Plex Sans', sans-serif;
+  background: var(--stage);
+  color: var(--paper);
+  line-height: 1.6;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Typography ─────────────────────────────────────────────────────────── */
+.display {
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.mono {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.88em;
+}
+
+.eyebrow {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--marquee);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* ── Page shell (student-facing pages) ─────────────────────────────────── */
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+
+.page-header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.brand {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2.6rem;
+  letter-spacing: 0.08em;
+  color: var(--marquee);
+  line-height: 1;
+}
+
+.brand-sub {
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--stage-border);
+  margin-top: 0.3rem;
+}
+
+/* ── Ticket component ───────────────────────────────────────────────────── */
+.ticket {
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 480px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  position: relative;
+}
+
+.ticket-stub {
+  background: var(--stage);
+  color: var(--marquee);
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.ticket-stub .wk-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--stage-border);
+  font-family: 'IBM Plex Mono', monospace;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.ticket-stub .wk-num {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 3.2rem;
+  color: var(--marquee);
+  line-height: 1;
+}
+
+.ticket-stub .stub-info {
+  flex: 1;
+}
+
+.ticket-stub .stub-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--paper);
+}
+
+.ticket-stub .stub-meta {
+  font-size: 0.75rem;
+  color: var(--ink-mid);
+  font-family: 'IBM Plex Mono', monospace;
+  margin-top: 2px;
+}
+
+/* Dashed perforation line */
+.ticket-divider {
+  height: 1px;
+  border: none;
+  border-top: 2px dashed var(--stage-border);
+  position: relative;
+  background: transparent;
+}
+
+/* Circular notch cutouts at each end of the perforation */
+.ticket-divider::before,
+.ticket-divider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--stage);
+}
+.ticket-divider::before { left: -10px; }
+.ticket-divider::after  { right: -10px; }
+
+.ticket-body {
+  padding: 1.5rem;
+}
+
+/* ── Status dot (ON-AIR pulsing indicator) ──────────────────────────────── */
+.status-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--stage-border);
+  vertical-align: middle;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.status-dot.live {
+  background: var(--live-red);
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
+
+.status-dot.ok {
+  background: var(--ok-green);
+}
+
+@keyframes pulse-dot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(214,73,59,0.55); }
+  50%       { box-shadow: 0 0 0 6px rgba(214,73,59,0); }
+}
+
+/* ── Form elements ──────────────────────────────────────────────────────── */
+.field {
+  margin-bottom: 1.1rem;
+}
+
+.field label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.4rem;
+  color: var(--ink-mid);
+}
+
+.field input,
+.field textarea,
+.field select {
+  width: 100%;
+  padding: 0.6rem 0.85rem;
+  border: 1.5px solid var(--paper-dim);
+  border-radius: var(--radius);
+  font-family: 'IBM Plex Sans Thai', sans-serif;
+  font-size: 1rem;
+  background: #fff;
+  color: var(--ink);
+  transition: border-color 0.15s;
+  outline: none;
+}
+
+.field input:focus,
+.field textarea:focus,
+.field select:focus {
+  border-color: var(--marquee);
+  box-shadow: 0 0 0 3px rgba(232,178,61,0.18);
+}
+
+.field textarea {
+  resize: vertical;
+  min-height: 90px;
+  line-height: 1.55;
+}
+
+/* Invert colours when the field is inside the dark ticket-body stub area */
+.ticket-stub .field label { color: var(--stage-border); }
+.ticket-stub .field input { background: var(--stage-raised); border-color: var(--stage-border); color: var(--paper); }
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45em;
+  padding: 0.6rem 1.4rem;
+  border-radius: var(--radius);
+  border: none;
+  cursor: pointer;
+  font-family: 'IBM Plex Sans Thai', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  line-height: 1.3;
+  text-decoration: none;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-primary  { background: var(--stage); color: var(--paper); }
+.btn-primary:hover:not(:disabled) { opacity: 0.85; }
+
+.btn-marquee  { background: var(--marquee); color: var(--ink); }
+.btn-marquee:hover:not(:disabled) { opacity: 0.9; }
+
+.btn-danger   { background: var(--live-red); color: #fff; }
+.btn-danger:hover:not(:disabled) { opacity: 0.88; }
+
+.btn-ghost    { background: transparent; color: var(--paper); border: 1.5px solid var(--stage-border); }
+.btn-ghost:hover:not(:disabled) { border-color: var(--marquee); color: var(--marquee); }
+
+.btn-ghost-dark { background: transparent; color: var(--ink); border: 1.5px solid var(--paper-dim); }
+.btn-ghost-dark:hover:not(:disabled) { border-color: var(--ink); }
+
+.btn-sm { padding: 0.35rem 0.9rem; font-size: 0.8rem; }
+
+.btn-full { width: 100%; }
+
+/* ── Timer (student check-in countdown) ─────────────────────────────────── */
+.timer {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 4rem;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  color: var(--ink);
+  text-align: center;
+  transition: color 0.3s;
+}
+
+.timer.warn { color: var(--live-red); }
+
+.question-box {
+  background: var(--paper-dim);
+  border-left: 4px solid var(--marquee);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 1.2rem;
+  font-size: 1rem;
+  color: var(--ink);
+  line-height: 1.55;
+}
+
+/* ── Error / success messages ───────────────────────────────────────────── */
+.error-text {
+  color: var(--live-red);
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+.success-text {
+  color: var(--ok-green);
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+/* ── Admin shell ────────────────────────────────────────────────────────── */
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.shell-header {
+  background: var(--stage-raised);
+  border-bottom: 1px solid var(--stage-border);
+  padding: 0 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  height: 56px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.shell-brand {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.4rem;
+  letter-spacing: 0.08em;
+  color: var(--marquee);
+  white-space: nowrap;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.nav-link {
+  padding: 0.35rem 0.85rem;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--paper);
+  text-decoration: none;
+  opacity: 0.6;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.nav-link:hover    { opacity: 1; }
+.nav-link.active   { opacity: 1; background: rgba(255,255,255,0.07); }
+
+.shell-main {
+  flex: 1;
+  padding: 2rem 1.5rem;
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* ── Card (general admin card) ──────────────────────────────────────────── */
+.card {
+  background: var(--stage-raised);
+  border: 1px solid var(--stage-border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.card-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: var(--paper);
+}
+
+/* ── Week grid (dashboard) ──────────────────────────────────────────────── */
+.week-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.week-card {
+  background: var(--stage-raised);
+  border: 1px solid var(--stage-border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  text-decoration: none;
+  color: var(--paper);
+  display: block;
+  transition: border-color 0.15s, transform 0.12s;
+}
+
+.week-card:hover {
+  border-color: var(--marquee);
+  transform: translateY(-2px);
+}
+
+.week-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.wk-num-display {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 3rem;
+  color: var(--marquee);
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.wk-num-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--stage-border);
+  font-family: 'IBM Plex Mono', monospace;
+  margin-bottom: 2px;
+}
+
+.week-card-meta {
+  font-size: 0.75rem;
+  color: var(--ink-mid);
+  white-space: nowrap;
+}
+
+.week-card-question {
+  font-size: 0.85rem;
+  color: var(--paper);
+  opacity: 0.75;
+  line-height: 1.45;
+  margin-top: 0.3rem;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.week-card-footer {
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  color: var(--ink-mid);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* ── Badges ─────────────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-family: 'IBM Plex Mono', monospace;
+  white-space: nowrap;
+}
+
+.badge-open    { background: rgba(214,73,59,0.15); color: var(--live-red); }
+.badge-closed  { background: rgba(255,255,255,0.06); color: var(--ink-mid); }
+.badge-present { background: rgba(79,157,105,0.15); color: var(--ok-green); }
+.badge-absent  { background: rgba(214,73,59,0.1); color: var(--live-red); }
+
+/* ── Table ──────────────────────────────────────────────────────────────── */
+.table-wrap {
+  overflow-x: auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--stage-border);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+th {
+  background: rgba(255,255,255,0.04);
+  padding: 0.6rem 1rem;
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-mid);
+  font-family: 'IBM Plex Mono', monospace;
+  border-bottom: 1px solid var(--stage-border);
+  white-space: nowrap;
+}
+
+td {
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--stage-border);
+  vertical-align: top;
+}
+
+tr:last-child td { border-bottom: none; }
+
+tr:hover td { background: rgba(255,255,255,0.02); }
+
+/* ── Toolbar (action bar above tables/sections) ─────────────────────────── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.toolbar-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+/* ── Stat cards row (week detail page) ─────────────────────────────────── */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.stat-card {
+  background: var(--stage-raised);
+  border: 1px solid var(--stage-border);
+  border-radius: var(--radius-lg);
+  padding: 1.1rem 1.25rem;
+  text-align: center;
+}
+
+.stat-num {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2.8rem;
+  line-height: 1;
+  color: var(--marquee);
+}
+
+.stat-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-mid);
+  font-family: 'IBM Plex Mono', monospace;
+  margin-top: 4px;
+}
+
+/* ── Empty state ────────────────────────────────────────────────────────── */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--ink-mid);
+  font-size: 0.9rem;
+}
+
+.empty-state p { margin-top: 0.5rem; }
+
+/* ── Center-screen helper (login page) ─────────────────────────────────── */
+.center-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+
+.login-box {
+  width: 100%;
+  max-width: 380px;
+}
+
+/* ── Inline form row (label + input + button on one line) ───────────────── */
+.inline-form {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.inline-form .field { margin-bottom: 0; flex: 1; min-width: 120px; }
+
+/* ── Action bar (open/close + export on week page) ─────────────────────── */
+.action-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+/* ── Utility ────────────────────────────────────────────────────────────── */
+.mt-1 { margin-top: 0.5rem; }
+.mt-2 { margin-top: 1rem; }
+.mt-3 { margin-top: 1.5rem; }
+.mb-1 { margin-bottom: 0.5rem; }
+.mb-2 { margin-bottom: 1rem; }
+.text-muted { color: var(--ink-mid); font-size: 0.85rem; }
+
+/* ── Mobile ─────────────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .ticket { max-width: 100%; }
+
+  .ticket-stub {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .stat-row { grid-template-columns: 1fr 1fr; }
+  .stat-row .stat-card:last-child { grid-column: 1 / -1; }
+
+  .shell-header { gap: 0.75rem; padding: 0 1rem; }
+
+  .week-grid { grid-template-columns: 1fr; }
+
+  .action-bar { flex-direction: column; align-items: stretch; }
+}
