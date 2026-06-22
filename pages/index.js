@@ -35,6 +35,17 @@ export default function CheckInPage() {
   const answerRef = useRef('');
   useEffect(() => { answerRef.current = answer; }, [answer]);
 
+  // Helper utility: Compute a non-intrusive client-side hardware fingerprint
+  function getDeviceFingerprint() {
+    if (typeof window === 'undefined') return '';
+    const hardwareToken = 
+      navigator.userAgent + 
+      (navigator.hardwareConcurrency || 2) + 
+      screen.colorDepth + 
+      screen.width;
+    return btoa(hardwareToken);
+  }
+
   // Load which week is currently open
   useEffect(() => {
     fetch('/api/attendance/current')
@@ -42,7 +53,14 @@ export default function CheckInPage() {
       .then((data) => {
         if (data.open) {
           setWeek(data.week);
-          setStep('entry');
+          
+          // CRITICAL LAYER: Check if this specific device already carries a local token block
+          const deviceLock = localStorage.getItem(`submitted_week_${data.week.id}`);
+          if (deviceLock) {
+            setStep('already');
+          } else {
+            setStep('entry');
+          }
         } else {
           setStep('closed');
         }
@@ -74,6 +92,15 @@ export default function CheckInPage() {
     e.preventDefault();
     setLookupError('');
     setLooking(true);
+
+    // Preventive UI pre-check before hitting backend infrastructure
+    const deviceLock = localStorage.getItem(`submitted_week_${week.id}`);
+    if (deviceLock) {
+      setStep('already');
+      setLooking(false);
+      return;
+    }
+
     try {
       const res = await fetch(`/api/attendance/lookup?student_id=${encodeURIComponent(inputId.trim())}`);
       const data = await res.json();
@@ -101,6 +128,9 @@ export default function CheckInPage() {
         ? CHECKIN_SECONDS - secondsUsedOverride  // auto-submit at 0
         : CHECKIN_SECONDS - timeLeft;
 
+    // Compile dynamic browser hardware signature parameters
+    const fingerprint = getDeviceFingerprint();
+
     try {
       const res = await fetch('/api/attendance/submit', {
         method: 'POST',
@@ -110,10 +140,14 @@ export default function CheckInPage() {
           student_id: studentId,
           answer: answerOverride !== undefined ? answerOverride : answer,
           seconds_taken: secondsTaken,
+          fingerprint: fingerprint // Forward device token alongside payload records
         }),
       });
       const data = await res.json();
-      if (res.status === 409) {
+      
+      // Handle potential duplicate entries caught by either database or HTTP layers
+      if (res.status === 409 || data.error?.includes('เช็คชื่อไปแล้ว') || data.error?.includes('unique_device_per_week')) {
+        localStorage.setItem(`submitted_week_${week.id}`, 'true');
         setStep('already');
       } else if (res.status === 403) {
         setSubmitError('การเช็คชื่อถูกปิดแล้ว กรุณาติดต่อครู');
@@ -122,6 +156,8 @@ export default function CheckInPage() {
         setSubmitError(data.error || 'ส่งไม่สำเร็จ กรุณาลองใหม่');
         setSubmitting(false);
       } else {
+        // Drop local hardware lockout authorization token key value matching active transaction ID
+        localStorage.setItem(`submitted_week_${week.id}`, 'true');
         setDoneRecord(data.record);
         setStep('done');
       }
@@ -176,7 +212,12 @@ export default function CheckInPage() {
                   fetch('/api/attendance/current')
                     .then((r) => r.json())
                     .then((data) => {
-                      if (data.open) { setWeek(data.week); setStep('entry'); }
+                      if (data.open) { 
+                        setWeek(data.week); 
+                        const localLock = localStorage.getItem(`submitted_week_${data.week.id}`);
+                        if (localLock) setStep('already');
+                        else setStep('entry');
+                      }
                       else setStep('closed');
                     })
                     .catch(() => setStep('closed'));
@@ -329,16 +370,16 @@ export default function CheckInPage() {
             <div className="ticket-stub" style={{ justifyContent: 'center' }}>
               <span className="status-dot ok" />
               <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--marquee-soft)' }}>
-                เช็คชื่อแล้ว
+                อุปกรณ์นี้เช็คชื่อไปแล้ว
               </span>
             </div>
             <div className="ticket-divider" />
             <div className="ticket-body" style={{ padding: '2rem 1.5rem' }}>
               <p style={{ color: 'var(--ink)', fontWeight: 600 }}>
-                คุณเช็คชื่อสัปดาห์นี้ไปแล้ว
+                ล้มเหลว: ตรวจพบข้อมูลการส่งซ้ำจากเครื่องนี้
               </p>
               <p className="text-muted mt-1" style={{ fontSize: '0.88rem' }}>
-                ระบบบันทึกการเข้าเรียนของคุณไว้แล้ว ไม่สามารถเช็คชื่อซ้ำได้
+                ระบบอนุญาตให้หนึ่งเครื่องสามารถส่งรายชื่อเข้าเรียนได้เพียงหนึ่งครั้งต่อสัปดาห์เท่านั้น
               </p>
             </div>
           </div>
