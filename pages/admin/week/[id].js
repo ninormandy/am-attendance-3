@@ -14,10 +14,13 @@ export default function WeekDashboardPage() {
   useEffect(() => {
     if (!id) return;
     setLoading(true);
-    fetch(`/api/weeks/detail?id=${id}`)
+    
+    // CRITICAL FIX: Pointed fetch away from /api/weeks/detail to bypass the dynamic route collision!
+    fetch(`/api/weeks/records-list?id=${id}`)
       .then((res) => res.json())
       .then((data) => {
-        if (data.success) {
+        // Updated to safely catch backend payloads wrapping array data fields
+        if (data.success || data.records) {
           setRecords(data.records || []);
         } else {
           setError(data.error || 'Failed to load records');
@@ -90,7 +93,6 @@ export default function WeekDashboardPage() {
                   <td style={{ padding: '12px' }}>{studentRow.answer || '-'}</td>
                   
                   {/* 📸 FIXED MEDIA CONTAINER CELL */}
-                  {/* We securely verify against both underscore and camelCase formatting variables */}
                   <td style={{ padding: '12px' }}>
                     {studentRow.photo_url || studentRow.photoUrl ? (
                       <a 
@@ -110,7 +112,6 @@ export default function WeekDashboardPage() {
                             display: 'block'
                           }}
                           onError={(e) => {
-                            // Fallback handler if url structure points to an empty bucket location
                             e.target.onerror = null;
                             e.target.src = 'https://placehold.co/75x50/fee2e2/991b1b?text=Broken+Link';
                           }}
