@@ -16,7 +16,7 @@ export default function WeekDashboardPage() {
     setLoading(true);
     
     // CRITICAL FIX: Pointed fetch away from /api/weeks/detail to bypass the dynamic route collision!
-    fetch(`/api/weeks/records-list?id=${id}`)
+    fetch(`/api/weeks/${id}`)
       .then((res) => res.json())
       .then((data) => {
         // Updated to safely catch backend payloads wrapping array data fields
