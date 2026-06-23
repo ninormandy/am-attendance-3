@@ -38,7 +38,7 @@ export default function WeekDetailPage() {
     return () => clearInterval(intervalRef.current);
   }, [id]);
 
-  // NEW FEATURE: Manual image approval/rejection controller
+  // Action controller to process verification state transitions
   async function handleUpdateStatus(recordId, targetStatus) {
     try {
       const res = await fetch('/api/admin/verify', {
@@ -48,7 +48,6 @@ export default function WeekDetailPage() {
       });
       
       if (res.ok) {
-        // Update local state record immediately
         setRecords(prev => prev.map(r => r.id === recordId ? { ...r, verification_status: targetStatus } : r));
       } else {
         alert('อัปเดตสถานะไม่สำเร็จ');
@@ -183,19 +182,16 @@ export default function WeekDetailPage() {
           </div>
         ) : (
           <div className="table-wrap">
-            <table>
+            <table style={{ width: '100%', tableLayout: 'auto' }}>
               <thead>
                 <tr>
-                  <th>#</th>
-                  <th>รหัสนักเรียน</th>
-                  <th>ชื่อ-นามสกุล</th>
-                  <th>เวลาเช็คชื่อ</th>
-                  <th>ใช้เวลา</th>
-                  {/* NEW HEADERS INJECTED CLEANLY */}
-                  <th>ภาพหลักฐาน</th>
-                  <th>สถานะตรวจ</th>
-                  <th>คำตอบ</th>
-                  <th>การจัดการ</th>
+                  <th style={{ width: '50px' }}>#</th>
+                  <th style={{ width: '120px' }}>รหัสนักเรียน</th>
+                  <th style={{ minWidth: '200px' }}>ชื่อ-นามสกุล</th>
+                  <th style={{ width: '120px' }}>เวลาเช็คชื่อ</th>
+                  <th style={{ width: '90px' }}>ภาพหลักฐาน</th>
+                  <th style={{ minWidth: '350px' }}>คำตอบ</th>
+                  <th style={{ width: '160px', textAlign: 'center' }}>สถานะการตรวจสอบ</th>
                 </tr>
               </thead>
               <tbody>
@@ -203,7 +199,12 @@ export default function WeekDetailPage() {
                   <tr key={r.id} className={r.verification_status === 'rejected' ? 'rejected-row' : ''}>
                     <td className="mono text-muted">{i + 1}</td>
                     <td className="mono">{r.student_id}</td>
-                    <td>{r.student_name}</td>
+                    
+                    {/* 👤 STYLING: Force name onto one line strictly without word wraps */}
+                    <td style={{ whiteSpace: 'nowrap', fontWeight: '500' }}>
+                      {r.student_name}
+                    </td>
+                    
                     <td className="mono">
                       {new Date(r.submitted_at).toLocaleTimeString('th-TH', {
                         hour: '2-digit',
@@ -211,11 +212,8 @@ export default function WeekDetailPage() {
                         second: '2-digit',
                       })}
                     </td>
-                    <td className="mono">
-                      {r.seconds_taken != null ? `${r.seconds_taken}s` : '—'}
-                    </td>
                     
-                    {/* 📸 NEW FEATURE CELL: IMAGE THUMBNAIL */}
+                    {/* Camera snapshot preview */}
                     <td>
                       {r.photo_url || r.photoUrl ? (
                         <a href={r.photo_url || r.photoUrl} target="_blank" rel="noopener noreferrer">
@@ -234,39 +232,35 @@ export default function WeekDetailPage() {
                       )}
                     </td>
 
-                    {/* ⏳ NEW FEATURE CELL: STATUS BADGES */}
-                    <td>
-                      <span className={`badge badge-${r.verification_status === 'approved' ? 'open' : r.verification_status === 'rejected' ? 'closed' : 'pending'}`}>
-                        {r.verification_status === 'pending' && '⏳ รอตรวจ'}
-                        {r.verification_status === 'approved' && '✅ อนุมัติ'}
-                        {r.verification_status === 'rejected' && '❌ ปฏิเสธ'}
-                      </span>
-                    </td>
-
-                    <td style={{ maxWidth: 280, fontSize: '0.85rem', lineHeight: 1.45 }}>
+                    {/* 📝 STYLING: Expanded cell footprint with maximum responsive container bounds */}
+                    <td style={{ fontSize: '0.88rem', lineHeight: '1.5', paddingRight: '20px' }}>
                       {r.answer || <span className="text-muted">—</span>}
                     </td>
 
-                    {/* 🛠️ NEW FEATURE CELL: ACTION BUTTONS USING YOUR GLOBAL CSS BUTTON STYLES */}
-                    <td>
-                      <div style={{ display: 'flex', gap: '4px' }}>
-                        <button 
-                          className="btn btn-ghost" 
-                          onClick={() => handleUpdateStatus(r.id, 'approved')}
-                          disabled={r.verification_status === 'approved'}
-                          style={{ padding: '2px 6px', fontSize: '0.75rem', height: 'auto', color: '#10b981' }}
-                        >
-                          Approve
-                        </button>
-                        <button 
-                          className="btn btn-ghost" 
-                          onClick={() => handleUpdateStatus(r.id, 'rejected')}
-                          disabled={r.verification_status === 'rejected'}
-                          style={{ padding: '2px 6px', fontSize: '0.75rem', height: 'auto', color: '#ef4444' }}
-                        >
-                          Reject
-                        </button>
-                      </div>
+                    {/* 🔄 DYNAMIC COLUMN: Swaps interaction buttons for static badges upon execution */}
+                    <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                      {r.verification_status === 'pending' ? (
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                          <button 
+                            className="btn btn-ghost" 
+                            onClick={() => handleUpdateStatus(r.id, 'approved')}
+                            style={{ padding: '4px 10px', fontSize: '0.8rem', height: 'auto', color: '#10b981', fontWeight: 'bold' }}
+                          >
+                            Approve
+                          </button>
+                          <button 
+                            className="btn btn-ghost" 
+                            onClick={() => handleUpdateStatus(r.id, 'rejected')}
+                            style={{ padding: '4px 10px', fontSize: '0.8rem', height: 'auto', color: '#ef4444', fontWeight: 'bold' }}
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      ) : (
+                        <span className={`badge badge-${r.verification_status === 'approved' ? 'open' : 'closed'}`} style={{ display: 'inline-block', minWidth: '85px', textAlign: 'center' }}>
+                          {r.verification_status === 'approved' ? '✅ อนุมัติ' : '❌ ปฏิเสธ'}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}
