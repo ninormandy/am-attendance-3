@@ -161,7 +161,6 @@ export default function WeekDetailPage() {
         </div>
 
         {/* Attendance records table */}
-        // Inside your array mapping function loop returning row components:
         {records.map((studentRow) => (
           <tr key={studentRow.id} style={{ 
             backgroundColor: studentRow.verification_status === 'rejected' ? '#fee2e2' : 'transparent' 
