@@ -1,15 +1,52 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 
+const CHECKIN_SECONDS = 300; // 5-minute quiz window
+
+function formatTime(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 export default function CheckInPage() {
+  // step: 'loading' | 'closed' | 'capture' | 'entry' | 'quiz' | 'done' | 'already'
   const [step, setStep] = useState('loading');
   const [week, setWeek] = useState(null);
-  const [studentId, setStudentId] = useState('');
-  const [answer, setAnswer] = useState('');
+
+  // Capture step
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
+
+  // Entry step
+  const [inputId, setInputId] = useState('');
+  const [lookupError, setLookupError] = useState('');
+  const [looking, setLooking] = useState(false);
+
+  // Quiz step
+  const [studentId, setStudentId] = useState('');
+  const [studentName, setStudentName] = useState('');
+  const [answer, setAnswer] = useState('');
+  const [timeLeft, setTimeLeft] = useState(CHECKIN_SECONDS);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+
+  // Done step
+  const [doneRecord, setDoneRecord] = useState(null);
+
+  const answerRef = useRef('');
+  useEffect(() => { answerRef.current = answer; }, [answer]);
+
+  // Helper utility: Compute client-side hardware fingerprint
+  function getDeviceFingerprint() {
+    if (typeof window === 'undefined') return '';
+    const hardwareToken = 
+      navigator.userAgent + 
+      (navigator.hardwareConcurrency || 2) + 
+      screen.colorDepth + 
+      screen.width;
+    return btoa(hardwareToken);
+  }
 
   // Load active week session
   useEffect(() => {
@@ -18,8 +55,15 @@ export default function CheckInPage() {
       .then((data) => {
         if (data.open) {
           setWeek(data.week);
+          
+          // Check for hardware lockout token
           const deviceLock = localStorage.getItem(`submitted_week_${data.week.id}`);
-          setStep(deviceLock ? 'already' : 'capture_proof');
+          if (deviceLock) {
+            setStep('already');
+          } else {
+            // FLOW CHANGE: First step is now strictly taking a picture
+            setStep('capture');
+          }
         } else {
           setStep('closed');
         }
@@ -27,14 +71,32 @@ export default function CheckInPage() {
       .catch(() => setStep('closed'));
   }, []);
 
-  // Capture image manipulation event handler
+  // Countdown timer — ONLY starts when step becomes 'quiz'
+  useEffect(() => {
+    if (step !== 'quiz') return;
+    setTimeLeft(CHECKIN_SECONDS);
+
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          submitAnswer(0, answerRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [step]);
+
+  // Handle Photo Capture
   const handlePhotoCapture = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // SECURITY GATES: Enforce image execution verification parameters
     if (!file.type.startsWith('image/')) {
-      alert('กรุณาเลือกไฟล์รูปภาพเท่านั้น / Valid image inputs only.');
+      alert('กรุณาเลือกไฟล์รูปภาพเท่านั้น');
       return;
     }
 
@@ -47,94 +109,156 @@ export default function CheckInPage() {
     setPhotoPreview(null);
   };
 
-  const handleAttendanceSubmit = async (e) => {
+  // Move from Photo to ID Entry
+  const handleConfirmPhoto = (e) => {
     e.preventDefault();
-    if (!studentId.trim() || !answer.trim() || !photo) {
-      return alert('กรุณากรอกข้อมูลและถ่ายรูปหลักฐานให้ครบถ้วน');
+    if (!photo) return alert('กรุณาถ่ายรูปภาพหลักฐานก่อนเข้าหน้าถัดไป');
+    setStep('entry'); // Camera verification passed, proceed to Student ID entry
+  };
+
+  // Handle Student ID Lookup
+  async function handleLookup(e) {
+    e.preventDefault();
+    setLookupError('');
+    setLooking(true);
+
+    const deviceLock = localStorage.getItem(`submitted_week_${week.id}`);
+    if (deviceLock) {
+      setStep('already');
+      setLooking(false);
+      return;
     }
 
-    setSubmitting(true);
-    setSubmitError('');
+    try {
+      const res = await fetch(`/api/attendance/lookup?student_id=${encodeURIComponent(inputId.trim())}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setLookupError(data.error || 'ไม่พบรหัสนักเรียนนี้');
+      } else {
+        setStudentId(data.student.student_id);
+        setStudentName(data.student.name);
+        setAnswer('');
+        setSubmitError('');
+        setStep('quiz'); // Transition to quiz phase, which kicks off the countdown timer!
+      }
+    } catch {
+      setLookupError('เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่');
+    } finally {
+      setLooking(false);
+    }
+  }
 
-    // 1. Stage image file payload within binary multipart forms
+  // Final Multipart Form Submission
+  async function submitAnswer(secondsUsedOverride, answerOverride) {
+    if (submitting) return;
+    setSubmitting(true);
+    
+    const secondsTaken =
+      secondsUsedOverride != null
+        ? CHECKIN_SECONDS - secondsUsedOverride
+        : CHECKIN_SECONDS - timeLeft;
+
+    const fingerprint = getDeviceFingerprint();
+
+    // Use FormData to compile field strings along with our raw image binary blob
     const formData = new FormData();
     formData.append('week_id', week.id);
-    formData.append('student_id', studentId.trim());
-    formData.append('answer', answer.trim());
-    formData.append('photo', photo);
-    formData.append('fingerprint', btoa(navigator.userAgent + screen.colorDepth));
+    formData.append('student_id', studentId);
+    formData.append('answer', answerOverride !== undefined ? answerOverride : answer);
+    formData.append('seconds_taken', secondsTaken);
+    formData.append('photo', photo); // Attached image binary loaded in step 1
+    formData.append('fingerprint', fingerprint);
 
     try {
       const res = await fetch('/api/attendance/submit', {
         method: 'POST',
-        body: formData, // Next.js API processes automatically via multipart requests
+        body: formData, // Formidable middleware endpoint processes this on backend
       });
       const data = await res.json();
-
-      if (res.status === 409) {
+      
+      if (res.status === 409 || data.error?.includes('เช็คชื่อไปแล้ว')) {
         localStorage.setItem(`submitted_week_${week.id}`, 'true');
         setStep('already');
+      } else if (res.status === 403) {
+        setSubmitError('การเช็คชื่อถูกปิดแล้ว กรุณาติดต่อครู');
+        setStep('closed');
       } else if (!res.ok) {
-        setSubmitError(data.error || 'เกิดข้อผิดพลาด กรุณาลองใหม่');
+        setSubmitError(data.error || 'ส่งไม่สำเร็จ กรุณาลองใหม่');
+        setSubmitting(false);
       } else {
         localStorage.setItem(`submitted_week_${week.id}`, 'true');
+        setDoneRecord(data.record);
         setStep('done');
       }
     } catch {
-      setSubmitError('ระบบเครือข่ายขัดข้อง กรุณาลองใหม่อีกครั้ง');
-    } finally {
+      setSubmitError('เกิดข้อผิดพลาดในการเชื่อมต่อ');
       setSubmitting(false);
     }
-  };
+  }
+
+  async function handleSubmitClick(e) {
+    e.preventDefault();
+    submitAnswer(null, answer);
+  }
 
   return (
     <>
-      <Head><title>เข้าเรียนด้วยภาพถ่าย — AM Attendance</title></Head>
+      <Head>
+        <title>เช็คชื่อ — AM Attendance</title>
+      </Head>
+
       <div className="page">
         <div className="page-header">
           <div className="brand">AM ATTENDANCE</div>
-          <div className="brand-sub">ระบบเช็คชื่อด้วยหลักฐานภาพถ่ายห้องเรียน</div>
+          <div className="brand-sub">ระบบเช็คชื่อนักเรียน</div>
         </div>
 
-        {step === 'loading' && <p className="text-muted">กำลังโหลดระบบ…</p>}
+        {/* ── LOADING ── */}
+        {step === 'loading' && <p className="text-muted">กำลังโหลด…</p>}
 
-        {step === 'closed' && <p className="text-muted">ไม่มีการเช็คชื่อที่เปิดอยู่ในขณะนี้</p>}
+        {/* ── CLOSED ── */}
+        {step === 'closed' && (
+          <div className="ticket" style={{ maxWidth: 420, textAlign: 'center' }}>
+            <div className="ticket-stub" style={{ justifyContent: 'center' }}>
+              <span className="status-dot" />
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--stage-border)' }}>
+                ไม่มีการเช็คชื่อที่เปิดอยู่ในขณะนี้
+              </span>
+            </div>
+            <div className="ticket-divider" />
+            <div className="ticket-body" style={{ padding: '2rem 1.5rem' }}>
+              <p style={{ color: 'var(--ink-mid)', fontSize: '0.9rem' }}>
+                กรุณารอจนกว่าครูจะเปิดการเช็คชื่อ แล้วรีเฟรชหน้านี้
+              </p>
+            </div>
+          </div>
+        )}
 
-        {step === 'capture_proof' && week && (
-          <div className="ticket" style={{ padding: '1.5rem' }}>
-            <h2>สัปดาห์ที่ {week.week_number}: ถ่ายรูปหน้าชั้นเรียน</h2>
-            <p className="text-muted mb-3">คำถามสัปดาห์นี้: {week.question}</p>
-            
-            <form onSubmit={handleAttendanceSubmit}>
-              <div className="field">
-                <label>รหัสนักเรียน</label>
-                <input 
-                  type="text" 
-                  value={studentId} 
-                  onChange={(e) => setInputId(e.target.value)}
-                  placeholder="กรอกรหัสนักเรียนของคุณ" 
-                  required 
-                />
+        {/* ── STEP 1: CAMERA PROOF CAPTURE ── */}
+        {step === 'capture' && week && (
+          <div className="ticket">
+            <div className="ticket-stub">
+              <div>
+                <div className="wk-label">สัปดาห์ที่</div>
+                <div className="wk-num">{week.week_number}</div>
               </div>
-
-              <div className="field">
-                <label>คำตอบประจำสัปดาห์</label>
-                <input 
-                  type="text" 
-                  value={answer} 
-                  onChange={(e) => setAnswer(e.target.value)} 
-                  placeholder="พิมพ์คำตอบประจำสัปดาห์ที่นี่"
-                  required 
-                />
+              <div className="stub-info">
+                <div className="stub-title">
+                  <span className="status-dot live" />
+                  ขั้นตอนที่ 1: ถ่ายรูปห้องเรียน
+                </div>
+                <div className="stub-meta">ต้องถ่ายรูปภาพสดเพื่อเปิดข้อสอบ</div>
               </div>
-
-              <div className="field" style={{ margin: '1.5rem 0' }}>
-                <label style={{ display: 'block', marginBottom: '0.5rem' }}>รูปถ่ายหลักฐาน:</label>
-                
-                {!photoPreview ? (
-                  <label className="btn btn-marquee btn-full" style={{ textAlign: 'center', cursor: 'pointer' }}>
-                    📷 เปิดกล้องถ่ายภาพห้องเรียน
-                    {/* CRITICAL ATTRIBUTES: 'capture="environment"' strictly locks the input to the device live camera layout */}
+            </div>
+            <div className="ticket-divider" />
+            <div className="ticket-body" style={{ textAlign: 'center' }}>
+              {!photoPreview ? (
+                <div style={{ padding: '1.5rem 0' }}>
+                  <p style={{ marginBottom: '1.5rem', color: 'var(--ink-mid)' }}>
+                    กรุณากดปุ่มด้านล่างเพื่อเปิดกล้อง และถ่ายภาพหน้าชั้นเรียนเพื่อเป็นหลักฐานการเข้าเรียน
+                  </p>
+                  <label className="btn btn-marquee btn-full" style={{ display: 'inline-block', cursor: 'pointer', textAlign: 'center' }}>
+                    📷 เปิดกล้องถ่ายภาพหลักฐาน
                     <input 
                       type="file" 
                       accept="image/*" 
@@ -143,33 +267,152 @@ export default function CheckInPage() {
                       style={{ display: 'none' }} 
                     />
                   </label>
-                ) : (
-                  <div style={{ textAlign: 'center' }}>
-                    <img 
-                      src={photoPreview} 
-                      alt="Preview proof" 
-                      style={{ width: '100%', maxHeight: '250px', objectFit: 'cover', borderRadius: '8px' }} 
-                    />
-                    <div style={{ display: 'flex', gap: '10px', marginTop: '1rem' }}>
-                      <button type="button" className="btn btn-ghost-dark btn-full" onClick={clearPhotoAndRetake}>
-                        🔄 ถ่ายใหม่ (Retake)
-                      </button>
-                    </div>
+                </div>
+              ) : (
+                <div>
+                  <img 
+                    src={photoPreview} 
+                    alt="Captured workspace proof" 
+                    style={{ width: '100%', maxHeight: '240px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--stage-border)' }} 
+                  />
+                  <p style={{ margin: '1rem 0', color: 'var(--ok-green)', fontWeight: 600 }}>
+                    ✓ บันทึกภาพสำเร็จ คุณต้องการใช้ภาพนี้หรือไม่?
+                  </p>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button type="button" className="btn btn-ghost-dark btn-full" onClick={clearPhotoAndRetake}>
+                      🔄 ถ่ายใหม่ (Retake)
+                    </button>
+                    <button type="button" className="btn btn-marquee btn-full" onClick={handleConfirmPhoto}>
+                      ถัดไป: กรอกรหัส →
+                    </button>
                   </div>
-                )}
-              </div>
-
-              {submitError && <p className="error-text">{submitError}</p>}
-
-              <button type="submit" className="btn btn-marquee btn-full mt-2" disabled={submitting || !photo}>
-                {submitting ? 'กำลังส่งหลักฐานการเข้าเรียน…' : 'ยืนยันและเช็คชื่อเข้าเรียน ✓'}
-              </button>
-            </form>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
-        {step === 'done' && <div className="ticket" style={{ textAlign: 'center', padding: '2rem' }}><h2>เช็คชื่อสำเร็จแล้ว!</h2><p>ระบบบันทึกภาพถ่ายหลักฐานของคุณเรียบร้อยแล้ว สามารถปิดหน้านี้ได้เลย</p></div>}
-        {step === 'already' && <div className="ticket" style={{ textAlign: 'center', padding: '2rem' }}><h2>อุปกรณ์นี้เช็คชื่อไปแล้ว</h2><p>หนึ่งเครื่องไม่สามารถส่งรายชื่อเข้าเรียนซ้ำได้ในสัปดาห์นี้</p></div>}
+        {/* ── STEP 2: ENTRY (student ID input) ── */}
+        {step === 'entry' && week && (
+          <div className="ticket">
+            <div className="ticket-stub">
+              <div>
+                <div className="wk-label">สัปดาห์ที่</div>
+                <div className="wk-num">{week.week_number}</div>
+              </div>
+              <div className="stub-info">
+                <div className="stub-title">ขั้นตอนที่ 2: รหัสนักเรียน</div>
+                <div className="stub-meta">กรอกรหัสประจำตัวของคุณเพื่อเริ่มทำควิซ</div>
+              </div>
+            </div>
+            <div className="ticket-divider" />
+            <div className="ticket-body">
+              <form onSubmit={handleLookup}>
+                <div className="field">
+                  <label htmlFor="student-id">รหัสนักเรียน</label>
+                  <input
+                    id="student-id"
+                    type="text"
+                    value={inputId}
+                    onChange={(e) => setInputId(e.target.value)}
+                    placeholder="กรอกรหัสนักเรียนของคุณ"
+                    autoComplete="off"
+                    autoFocus
+                    required
+                  />
+                </div>
+                {lookupError && <p className="error-text">{lookupError}</p>}
+                <button type="submit" className="btn btn-marquee btn-full mt-1" disabled={looking}>
+                  {looking ? 'กำลังตรวจสอบ…' : 'เข้าสู่หน้าควิซ & เริ่มจับเวลา ⏱️'}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ── STEP 3: QUIZ (countdown + question + answer) ── */}
+        {step === 'quiz' && week && (
+          <div className="ticket">
+            <div className="ticket-stub">
+              <div>
+                <div className="wk-label">สัปดาห์ที่</div>
+                <div className="wk-num">{week.week_number}</div>
+              </div>
+              <div className="stub-info">
+                <div className="stub-title">{studentName}</div>
+                <div className="stub-meta mono">{studentId}</div>
+              </div>
+            </div>
+            <div className="ticket-divider" />
+            <div className="ticket-body">
+              <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+                <div className="eyebrow" style={{ marginBottom: '0.25rem' }}>เวลาที่เหลือ</div>
+                <div className={`timer${timeLeft <= 30 ? ' warn' : ''}`}>
+                  {formatTime(timeLeft)}
+                </div>
+              </div>
+
+              <div className="question-box">{week.question}</div>
+
+              <form onSubmit={handleSubmitClick}>
+                <div className="field">
+                  <label htmlFor="answer">คำตอบของคุณ</label>
+                  <textarea
+                    id="answer"
+                    value={answer}
+                    onChange={(e) => setAnswer(e.target.value)}
+                    placeholder="พิมพ์คำตอบที่นี่…"
+                    rows={4}
+                    disabled={submitting}
+                  />
+                </div>
+                {submitError && <p className="error-text">{submitError}</p>}
+                <button type="submit" className="btn btn-marquee btn-full" disabled={submitting}>
+                  {submitting ? 'กำลังบันทึก…' : 'ส่งคำตอบ & เช็คชื่อ ✓'}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ── DONE ── */}
+        {step === 'done' && (
+          <div className="ticket" style={{ textAlign: 'center' }}>
+            <div className="ticket-stub" style={{ justifyContent: 'center', flexDirection: 'column', alignItems: 'center', padding: '1.5rem' }} >
+              <span className="status-dot ok" />
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--ok-green)', marginTop: '0.4rem' }}>
+                ส่งข้อมูลหลักฐานสำเร็จ
+              </span>
+            </div>
+            <div className="ticket-divider" />
+            <div className="ticket-body" style={{ textAlign: 'center', padding: '2rem 1.5rem' }}>
+              <p style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--ink)' }}>{studentName}</p>
+              <p className="mono" style={{ color: 'var(--ink-mid)', fontSize: '0.85rem', marginTop: '0.25rem' }}>{studentId}</p>
+              <p className="mt-3" style={{ color: 'var(--ink-mid)', fontSize: '0.9rem' }}>
+                ระบบได้แนบภาพถ่ายหลักฐานของคุณส่งให้ครูเรียบร้อยแล้ว สามารถปิดหน้านี้ได้เลยครับ
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ── ALREADY CHECKED IN ── */}
+        {step === 'already' && (
+          <div className="ticket" style={{ textAlign: 'center' }}>
+            <div className="ticket-stub" style={{ justifyContent: 'center' }}>
+              <span className="status-dot ok" />
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--marquee-soft)' }}>
+                อุปกรณ์นี้เช็คชื่อไปแล้ว
+              </span>
+            </div>
+            <div className="ticket-divider" />
+            <div className="ticket-body" style={{ padding: '2rem 1.5rem' }}>
+              <p style={{ color: 'var(--ink)', fontWeight: 600 }}>ล้มเหลว: ตรวจพบข้อมูลการส่งซ้ำ</p>
+              <p className="text-muted mt-1" style={{ fontSize: '0.88rem' }}>
+                เครื่องนี้ได้ส่งภาพหลักฐานการเช็คชื่อเข้าเรียนในสัปดาห์นี้ไปแล้ว ไม่สามารถดำเนินการซ้ำได้
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
