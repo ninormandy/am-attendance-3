@@ -1,72 +1,80 @@
 import { supabaseAdmin } from '../../../lib/supabaseAdmin';
+import formidable from 'formidable';
+import fs from 'fs';
 
-// Public endpoint — no auth required.
-// Validates that the week is open, the student is enrolled, and they
-// haven't already checked in this week. Then records their attendance.
+// Force Next.js core framework middleware tools to stand down from parsing multipart buffers
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST');
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method !== 'POST') return res.status(456).json({ error: 'Method not allowed' });
 
-  const { week_id, student_id, answer, seconds_taken, fingerprint } = req.body || {};
+  const form = formidable({});
+  
+  form.parse(req, async (err, fields, files) => {
+    if (err) return res.status(500).json({ error: 'Failed parsing file data pipeline stream' });
 
-  // Require hardware footprint parameter verification along standard inputs
-  if (!week_id || !student_id || !fingerprint) {
-    return res.status(400).json({ error: 'ข้อมูลไม่ครบถ้วนหรือไม่พบรหัสเครื่อง' });
-  }
+    // Extract values cleanly out of Formidable field arrays
+    const week_id = fields.week_id?.[0];
+    const student_id = fields.student_id?.[0];
+    const answer = fields.answer?.[0];
+    const fingerprint = fields.fingerprint?.[0];
+    const rawPhotoFile = files.photo?.[0];
 
-  // Verify the week is still open
-  const { data: week, error: weekErr } = await supabaseAdmin
-    .from('weeks')
-    .select('id, status')
-    .eq('id', week_id)
-    .maybeSingle();
-
-  if (weekErr) return res.status(500).json({ error: weekErr.message });
-  if (!week) return res.status(404).json({ error: 'ไม่พบสัปดาห์นี้' });
-  if (week.status !== 'open') {
-    return res.status(403).json({ error: 'การเช็คชื่อถูกปิดแล้ว' });
-  }
-
-  // Verify student is enrolled
-  const { data: student, error: stuErr } = await supabaseAdmin
-    .from('students')
-    .select('student_id, name')
-    .eq('student_id', String(student_id).trim())
-    .maybeSingle();
-
-  if (stuErr) return res.status(500).json({ error: stuErr.message });
-  if (!student) {
-    return res.status(404).json({ error: 'ไม่พบรหัสนักเรียนนี้ในระบบ' });
-  }
-
-  // Insert record — dynamic checks on unique indices for both (week_id, student_id) 
-  // AND the anti-proxy composite (week_id, device_fingerprint) constraint rules.
-  const { data: record, error: insErr } = await supabaseAdmin
-    .from('attendance_records')
-    .insert({
-      week_id,
-      student_id: student.student_id,
-      student_name: student.name,
-      answer: answer ? String(answer).trim() : null,
-      seconds_taken: typeof seconds_taken === 'number' ? seconds_taken : null,
-      device_fingerprint: fingerprint // Log hardware signature onto row record
-    })
-    .select()
-    .single();
-
-  if (insErr) {
-    // Handle PostgreSQL unique constraint violations (code 23505)
-    if (insErr.code === '23505') {
-      // Differentiate between checking in twice with the same ID vs checking in with a used phone/device
-      if (insErr.message?.includes('device') || insErr.details?.includes('device') || insErr.hint?.includes('device_fingerprint')) {
-        return res.status(409).json({ error: 'อุปกรณ์นี้ได้ทำการเช็คชื่อไปแล้ว ไม่สามารถเช็คชื่อให้นักเรียนคนอื่นซ้ำได้' });
-      }
-      return res.status(409).json({ error: 'คุณเช็คชื่อสัปดาห์นี้ไปแล้ว' });
+    if (!week_id || !student_id || !rawPhotoFile || !fingerprint) {
+      return res.status(400).json({ error: 'ข้อมูลไม่ครบถ้วนหรือไม่พบรหัสกล้องภาพถ่าย' });
     }
-    return res.status(500).json({ error: insErr.message });
-  }
 
-  return res.status(201).json({ ok: true, name: student.name, record });
+    // A. Enforce week session open state logic gates
+    const { data: week } = await supabaseAdmin.from('weeks').select('status').eq('id', week_id).maybeSingle();
+    if (!week || week.status !== 'open') return res.status(403).json({ error: 'การเช็คชื่อถูกปิดแล้ว' });
+
+    // B. Enforce enrollment checks
+    const { data: student } = await supabaseAdmin.from('students').select('student_id, name').eq('student_id', student_id.trim()).maybeSingle();
+    if (!student) return res.status(404).json({ error: 'ไม่พบรหัสนักเรียนนี้ในระบบฐานข้อมูล' });
+
+    // C. Stream file binary to Supabase Cloud Buckets
+    const fileBuffer = fs.readFileSync(rawPhotoFile.filepath);
+    const fileExtension = rawPhotoFile.originalFilename.split('.').pop();
+    const storagePath = `${week_id}/${student.student_id}_${Date.now()}.${fileExtension}`;
+
+    const { data: uploadData, error: uploadErr } = await supabaseAdmin.storage
+      .from('attendance-proofs')
+      .upload(storagePath, fileBuffer, {
+        contentType: rawPhotoFile.mimetype,
+        upsert: true
+      });
+
+    if (uploadErr) return res.status(500).json({ error: `Storage upload crash: ${uploadErr.message}` });
+
+    // D. Extract file storage public url parameter location keys
+    const { data: { publicUrl } } = supabaseAdmin.storage.from('attendance-proofs').getPublicUrl(storagePath);
+
+    // E. Save transaction record to relational database tables
+    const { data: record, error: insErr } = await supabaseAdmin
+      .from('attendance_records')
+      .insert({
+        week_id,
+        student_id: student.student_id,
+        student_name: student.name,
+        answer: answer ? String(answer).trim() : null,
+        device_fingerprint: fingerprint,
+        photo_url: publicUrl, // Save photo reference link destination points
+        verification_status: 'pending' // Initialize standard validation audit gate
+      })
+      .select()
+      .single();
+
+    if (insErr) {
+      if (insErr.code === '23505') {
+        return res.status(409).json({ error: 'อุปกรณ์นี้หรือรหัสนักเรียนนี้ได้ใช้บันทึกเวลาสัปดาห์นี้ไปแล้ว' });
+      }
+      return res.status(500).json({ error: insErr.message });
+    }
+
+    return res.status(201).json({ ok: true, record });
+  });
 }

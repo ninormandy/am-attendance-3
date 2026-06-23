@@ -37,7 +37,24 @@ export default function WeekDetailPage() {
     intervalRef.current = setInterval(() => fetchData(true), 3000);
     return () => clearInterval(intervalRef.current);
   }, [id]);
-
+  async function handleUpdateStatus(recordId, targetStatus) {
+    try {
+      const res = await fetch('/api/admin/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ record_id: recordId, status: targetStatus })
+      });
+      
+      if (res.ok) {
+        // Refresh local array records states to mirror database metrics instantly
+        setRecords(prev => prev.map(r => r.id === recordId ? { ...r, verification_status: targetStatus } : r));
+      } else {
+        alert('Failed updating transaction state metrics');
+      }
+    } catch {
+      alert('Network transaction mutation exception error caught.');
+    }
+  }
   async function handleOpen() {
     setActionError('');
     const res = await fetch(`/api/weeks/${id}/open`, { method: 'POST' });
@@ -144,61 +161,63 @@ export default function WeekDetailPage() {
         </div>
 
         {/* Attendance records table */}
-        {records.length === 0 ? (
-          <div className="empty-state">
-            {isOpen ? (
-              <>
-                <div style={{ fontSize: '2rem' }}>⏳</div>
-                <p>รอนักเรียนเช็คชื่อ…</p>
-                <p className="text-muted" style={{ marginTop: '0.3rem', fontSize: '0.8rem' }}>
-                  Dashboard นี้อัปเดตทุก 3 วินาทีโดยอัตโนมัติ
-                </p>
-              </>
-            ) : (
-              <>
-                <div style={{ fontSize: '2rem' }}>📋</div>
-                <p>ยังไม่มีการเช็คชื่อในสัปดาห์นี้</p>
-              </>
-            )}
-          </div>
-        ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>รหัสนักเรียน</th>
-                  <th>ชื่อ-นามสกุล</th>
-                  <th>เวลาเช็คชื่อ</th>
-                  <th>ใช้เวลา</th>
-                  <th>คำตอบ</th>
-                </tr>
-              </thead>
-              <tbody>
-                {records.map((r, i) => (
-                  <tr key={r.id}>
-                    <td className="mono text-muted">{i + 1}</td>
-                    <td className="mono">{r.student_id}</td>
-                    <td>{r.student_name}</td>
-                    <td className="mono">
-                      {new Date(r.submitted_at).toLocaleTimeString('th-TH', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                      })}
-                    </td>
-                    <td className="mono">
-                      {r.seconds_taken != null ? `${r.seconds_taken}s` : '—'}
-                    </td>
-                    <td style={{ maxWidth: 280, fontSize: '0.85rem', lineHeight: 1.45 }}>
-                      {r.answer || <span className="text-muted">—</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        // Inside your array mapping function loop returning row components:
+        {records.map((studentRow) => (
+          <tr key={studentRow.id} style={{ 
+            backgroundColor: studentRow.verification_status === 'rejected' ? '#fee2e2' : 'transparent' 
+          }}>
+            <td>{studentRow.student_id}</td>
+            <td>{studentRow.student_name}</td>
+            <td>{studentRow.answer}</td>
+            
+            {/* Dynamic Media Render Frame */}
+            <td>
+              {studentRow.photo_url ? (
+                <a href={studentRow.photo_url} target="_blank" rel="noreferrer">
+                  <img 
+                    src={studentRow.photo_url} 
+                    alt="Proof signature" 
+                    style={{ width: '60px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #ccc' }} 
+                  />
+                </a>
+              ) : (
+                <span className="text-muted">No image uploaded</span>
+              )}
+            </td>
+
+            {/* Live Validation Verification Toggle Interface */}
+            <td>
+              <span className={`status-badge ${studentRow.verification_status}`}>
+                {studentRow.verification_status === 'pending' && '⏳ รอการตรวจสอบ'}
+                {studentRow.verification_status === 'approved' && '✅ ผ่านการตรวจสอบ'}
+                {studentRow.verification_status === 'rejected' && '❌ ถูกปฏิเสธ (Invalid)'}
+              </span>
+            </td>
+
+            {/* Admin Mutation Actions Interface */}
+            <td>
+              <div style={{ display: 'flex', gap: '5px' }}>
+                {studentRow.verification_status !== 'approved' && (
+                  <button 
+                    className="btn btn-success btn-small"
+                    onClick={() => handleUpdateStatus(studentRow.id, 'approved')}
+                  >
+                    Approve
+                  </button>
+                )}
+                {studentRow.verification_status !== 'rejected' && (
+                  <button 
+                    className="btn btn-danger btn-small"
+                    onClick={() => handleUpdateStatus(studentRow.id, 'rejected')}
+                    style={{ backgroundColor: '#dc2626', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}
+                  >
+                    Reject
+                  </button>
+                )}
+              </div>
+            </td>
+          </tr>
+        ))}
       </AdminShell>
     </>
   );
