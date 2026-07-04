@@ -33,12 +33,10 @@ export default function WeekDetailPage() {
   useEffect(() => {
     if (!id) return;
     fetchData();
-    // Poll every 3 seconds for live attendance updates
     intervalRef.current = setInterval(() => fetchData(true), 3000);
     return () => clearInterval(intervalRef.current);
   }, [id]);
 
-  // Action controller to process verification state transitions
   async function handleUpdateStatus(recordId, targetStatus) {
     try {
       const res = await fetch('/api/admin/verify', {
@@ -79,6 +77,26 @@ export default function WeekDetailPage() {
     }
   }
 
+  // NEW FEATURE: Delete handler with window verification modal
+  async function handleDeleteWeek() {
+    const confirmed = window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบสัปดาห์นี้? การลบจะทำลายข้อมูลภาพถ่ายและประวัติการเช็คชื่อทั้งหมดในสัปดาห์นี้อย่างถาวร');
+    if (!confirmed) return;
+
+    setActionError('');
+    try {
+      const res = await fetch(`/api/weeks/${id}/delete`, { method: 'DELETE' });
+      if (res.ok) {
+        alert('ลบสัปดาห์เรียบร้อยแล้ว');
+        router.push('/admin/dashboard'); // Redirect back to general dashboard layout
+      } else {
+        const data = await res.json();
+        setActionError(data.error || 'ไม่สามารถลบสัปดาห์ได้');
+      }
+    } catch {
+      setActionError('เกิดข้อผิดพลาดระบบเครือข่ายในการลบข้อมูล');
+    }
+  }
+
   if (loading || !week) {
     return (
       <AdminShell>
@@ -114,7 +132,7 @@ export default function WeekDetailPage() {
         </div>
 
         {/* Action bar */}
-        <div className="action-bar">
+        <div className="action-bar" style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           {isOpen ? (
             <button className="btn btn-danger" onClick={handleClose}>
               ⏹ ปิดการเช็คชื่อ
@@ -133,7 +151,16 @@ export default function WeekDetailPage() {
             ↓ Export Excel
           </a>
 
-          <button className="btn btn-ghost" onClick={() => router.push('/admin/dashboard')}>
+          {/* NEW DEREGISTRATION BUTTON INTEGRATED CLEANLY */}
+          <button 
+            className="btn btn-danger btn-ghost" 
+            onClick={handleDeleteWeek}
+            style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.2)' }}
+          >
+            🗑️ ลบสัปดาห์นี้
+          </button>
+
+          <button className="btn btn-ghost" onClick={() => router.push('/admin/dashboard')} style={{ marginLeft: 'auto' }}>
             ← กลับ
           </button>
         </div>
@@ -200,7 +227,6 @@ export default function WeekDetailPage() {
                     <td className="mono text-muted">{i + 1}</td>
                     <td className="mono">{r.student_id}</td>
                     
-                    {/* 👤 STYLING: Force name onto one line strictly without word wraps */}
                     <td style={{ whiteSpace: 'nowrap', fontWeight: '500' }}>
                       {r.student_name}
                     </td>
@@ -213,7 +239,6 @@ export default function WeekDetailPage() {
                       })}
                     </td>
                     
-                    {/* Camera snapshot preview */}
                     <td>
                       {r.photo_url || r.photoUrl ? (
                         <a href={r.photo_url || r.photoUrl} target="_blank" rel="noopener noreferrer">
@@ -232,12 +257,10 @@ export default function WeekDetailPage() {
                       )}
                     </td>
 
-                    {/* 📝 STYLING: Expanded cell footprint with maximum responsive container bounds */}
                     <td style={{ fontSize: '0.88rem', lineHeight: '1.5', paddingRight: '20px' }}>
                       {r.answer || <span className="text-muted">—</span>}
                     </td>
 
-                    {/* 🔄 DYNAMIC COLUMN: Swaps interaction buttons for static badges upon execution */}
                     <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
                       {r.verification_status === 'pending' ? (
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
