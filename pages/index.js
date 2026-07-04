@@ -133,7 +133,7 @@ export default function CheckInPage() {
       const res = await fetch(`/api/attendance/lookup?student_id=${encodeURIComponent(inputId.trim())}`);
       const data = await res.json();
       if (!res.ok) {
-        setLookupError(data.error || 'ไม่พบรหัสนักเรียนนี้');
+        setLookupError(data.error || 'ไม่พบรหัสนักศึกษานี้');
       } else {
         setStudentId(data.student.student_id);
         setStudentName(data.student.name);
@@ -180,7 +180,7 @@ export default function CheckInPage() {
         localStorage.setItem(`submitted_week_${week.id}`, 'true');
         setStep('already');
       } else if (res.status === 403) {
-        setSubmitError('การเช็คชื่อถูกปิดแล้ว กรุณาติดต่อครู');
+        setSubmitError('การเช็คชื่อถูกปิดแล้ว กรุณาติดต่ออาจารย์บอล');
         setStep('closed');
       } else if (!res.ok) {
         setSubmitError(data.error || 'ส่งไม่สำเร็จ กรุณาลองใหม่');
@@ -210,7 +210,7 @@ export default function CheckInPage() {
       <div className="page">
         <div className="page-header">
           <div className="brand">AM ATTENDANCE</div>
-          <div className="brand-sub">ระบบเช็คชื่อนักเรียน</div>
+          <div className="brand-sub">ระบบเช็คชื่อนักศึกษา</div>
         </div>
 
         {/* ── LOADING ── */}
@@ -228,7 +228,7 @@ export default function CheckInPage() {
             <div className="ticket-divider" />
             <div className="ticket-body" style={{ padding: '2rem 1.5rem' }}>
               <p style={{ color: 'var(--ink-mid)', fontSize: '0.9rem' }}>
-                กรุณารอจนกว่าครูจะเปิดการเช็คชื่อ แล้วรีเฟรชหน้านี้
+                กรุณารอจนกว่าอาจารย์บอลจะเปิดการเช็คชื่อ แล้วรีเฟรชหน้านี้
               </p>
             </div>
           </div>
@@ -245,9 +245,9 @@ export default function CheckInPage() {
               <div className="stub-info">
                 <div className="stub-title">
                   <span className="status-dot live" />
-                  ขั้นตอนที่ 1: ถ่ายรูปห้องเรียน
+                  ขั้นตอนที่ 1: ถ่ายภาพตนเองกับบรรยากาศภายในห้องเรียน โดยต้องถ่ายติดอาจารย์บอลเท่านั้น จึงจะเช็คชื่อผ่าน
                 </div>
-                <div className="stub-meta">ต้องถ่ายรูปภาพสดเพื่อเปิดข้อสอบ</div>
+                <div className="stub-meta">ต้องถ่ายรูปภาพเพื่อทำควิซ</div>
               </div>
             </div>
             <div className="ticket-divider" />
@@ -255,10 +255,10 @@ export default function CheckInPage() {
               {!photoPreview ? (
                 <div style={{ padding: '1.5rem 0' }}>
                   <p style={{ marginBottom: '1.5rem', color: 'var(--ink-mid)' }}>
-                    กรุณากดปุ่มด้านล่างเพื่อเปิดกล้อง และถ่ายภาพหน้าชั้นเรียนเพื่อเป็นหลักฐานการเข้าเรียน
+                    กรุณากดปุ่มด้านล่างเพื่อเปิดกล้อง และถ่ายภาพเซลฟี่ให้เห็นอาจารย์บอลเพื่อเป็นหลักฐานการเข้าเรียน
                   </p>
                   <label className="btn btn-marquee btn-full" style={{ display: 'inline-block', cursor: 'pointer', textAlign: 'center' }}>
-                    📷 เปิดกล้องถ่ายภาพหลักฐาน
+                    📷 เปิดกล้องถ่ายภาพ
                     <input 
                       type="file" 
                       accept="image/*" 
@@ -301,7 +301,7 @@ export default function CheckInPage() {
                 <div className="wk-num">{week.week_number}</div>
               </div>
               <div className="stub-info">
-                <div className="stub-title">ขั้นตอนที่ 2: รหัสนักเรียน</div>
+                <div className="stub-title">ขั้นตอนที่ 2: รหัสนักศึกษา</div>
                 <div className="stub-meta">กรอกรหัสประจำตัวของคุณเพื่อเริ่มทำควิซ</div>
               </div>
             </div>
@@ -309,13 +309,13 @@ export default function CheckInPage() {
             <div className="ticket-body">
               <form onSubmit={handleLookup}>
                 <div className="field">
-                  <label htmlFor="student-id">รหัสนักเรียน</label>
+                  <label htmlFor="student-id">รหัสนักศึกษา</label>
                   <input
                     id="student-id"
                     type="text"
                     value={inputId}
                     onChange={(e) => setInputId(e.target.value)}
-                    placeholder="กรอกรหัสนักเรียนของคุณ"
+                    placeholder="กรอกรหัสนักศึกษาของคุณ"
                     autoComplete="off"
                     autoFocus
                     required
@@ -389,7 +389,7 @@ export default function CheckInPage() {
               <p style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--ink)' }}>{studentName}</p>
               <p className="mono" style={{ color: 'var(--ink-mid)', fontSize: '0.85rem', marginTop: '0.25rem' }}>{studentId}</p>
               <p className="mt-3" style={{ color: 'var(--ink-mid)', fontSize: '0.9rem' }}>
-                ระบบได้แนบภาพถ่ายหลักฐานของคุณส่งให้ครูเรียบร้อยแล้ว สามารถปิดหน้านี้ได้เลยครับ
+                ระบบได้แนบภาพถ่ายหลักฐานของคุณส่งให้อาจารย์บอลเรียบร้อยแล้ว สามารถปิดหน้านี้ได้เลยครับ
               </p>
             </div>
           </div>
@@ -401,14 +401,14 @@ export default function CheckInPage() {
             <div className="ticket-stub" style={{ justifyContent: 'center' }}>
               <span className="status-dot ok" />
               <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--marquee-soft)' }}>
-                อุปกรณ์นี้เช็คชื่อไปแล้ว
+                อุปกรณ์นี้เคยเช็คชื่อไปแล้ว
               </span>
             </div>
             <div className="ticket-divider" />
             <div className="ticket-body" style={{ padding: '2rem 1.5rem' }}>
               <p style={{ color: 'var(--ink)', fontWeight: 600 }}>ล้มเหลว: ตรวจพบข้อมูลการส่งซ้ำ</p>
               <p className="text-muted mt-1" style={{ fontSize: '0.88rem' }}>
-                เครื่องนี้ได้ส่งภาพหลักฐานการเช็คชื่อเข้าเรียนในสัปดาห์นี้ไปแล้ว ไม่สามารถดำเนินการซ้ำได้
+                อุปกรณ์นี้ได้ส่งภาพหลักฐานการเช็คชื่อเข้าเรียนในสัปดาห์นี้ไปแล้ว ไม่สามารถส่งซ้ำได้ครับ
               </p>
             </div>
           </div>
