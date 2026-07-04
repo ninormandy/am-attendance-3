@@ -427,7 +427,7 @@ body {
 .wk-num-display {
   font-family: 'Bebas Neue', sans-serif;
   font-size: 3rem;
-  color: var(--stage-border);
+  color: var(--marquee);
   line-height: 1;
   flex-shrink: 0;
 }
@@ -437,14 +437,14 @@ body {
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--stage-border);
+  color: var(--marquee);
   font-family: 'IBM Plex Mono', monospace;
   margin-bottom: 2px;
 }
 
 .week-card-meta {
   font-size: 0.75rem;
-  color: var(--paper-dim);
+  color: var(--paper);
   white-space: nowrap;
 }
 
