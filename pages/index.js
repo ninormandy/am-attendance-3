@@ -231,15 +231,15 @@ export default function CheckInPage() {
             <div className="ticket-stub" style={{ justifyContent: 'center' }}>
               <span className="status-dot live" style={{ backgroundColor: '#ef4444' }} />
               <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ef4444' }}>
-                อุปกรณ์ไม่ได้รับอนุญาต / Device Blocked
+                อุปกรณ์นี้ไม่สามารถใช้ได้ / Device Blocked
               </span>
             </div>
             <div className="ticket-divider" />
             <div className="ticket-body" style={{ padding: '2.5rem 1.5rem' }}>
               <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📱</div>
-              <h3 style={{ marginBottom: '0.5rem', color: 'var(--ink)' }}>ไม่อนุญาตให้ใช้งานผ่านคอมพิวเตอร์ (PC)</h3>
+              <h3 style={{ marginBottom: '0.5rem', color: 'var(--ink)' }}>ไม่สามารถใช้งานผ่าน Laptop หรือ Mac ได้</h3>
               <p style={{ color: 'var(--ink-mid)', fontSize: '0.9rem', lineHeight: 1.5 }}>
-                ระบบต้องการหลักฐานการบันทึกภาพถ่ายสดสภาพแวดล้อมชั้นเรียนผ่าน **กล้องมือถือหรือแท็บเล็ตเท่านั้น** กรุณาใช้โทรศัพท์มือถือสมาร์ทโฟนเปิดลิงก์นี้เพื่อดำเนินการเช็คชื่อเข้าเรียนครับ
+                ระบบต้องการหลักฐานการบันทึกภาพถ่ายผ่าน **กล้องมือถือหรือแท็บเล็ตเท่านั้น** กรุณาใช้โทรศัพท์มือถือสมาร์ทโฟนหรือแท็บเล็ตเปิดลิงก์นี้เพื่อดำเนินการเช็คชื่อเข้าเรียนครับ
               </p>
             </div>
           </div>
@@ -251,7 +251,7 @@ export default function CheckInPage() {
             <div className="ticket-stub" style={{ justifyContent: 'center' }}>
               <span className="status-dot" />
               <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--stage-border)' }}>
-                ไม่มีการเช็คชื่อที่เปิดอยู่ในขณะนี้
+                ไม่มีการเช็คชื่อเปิดอยู่ในขณะนี้
               </span>
             </div>
             <div className="ticket-divider" />
