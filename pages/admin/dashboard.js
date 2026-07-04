@@ -12,7 +12,7 @@ export default function AdminDashboardPage() {
   // 1. Fetch all weeks to populate the list dashboard
   async function fetchWeeksList() {
     try {
-      const res = await fetch('/api/admin/weeks'); // Your endpoint that returns the weeks array
+      const res = await fetch('/api/weeks'); // Your endpoint that returns the weeks array
       if (res.ok) {
         const data = await res.json();
         setWeeks(data.weeks || []);
