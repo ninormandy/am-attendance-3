@@ -82,7 +82,7 @@ body {
   font-size: 0.78rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--stage-border);
+  color: var(--paper);
   margin-top: 0.3rem;
 }
 
@@ -112,7 +112,7 @@ body {
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--stage-border);
+  color: var(--marquee);
   font-family: 'IBM Plex Mono', monospace;
   line-height: 1;
   margin-bottom: 2px;
@@ -137,7 +137,8 @@ body {
 
 .ticket-stub .stub-meta {
   font-size: 0.75rem;
-  color: var(--ink-mid);
+  color: var(--paper);
+  opacity: 70%;
   font-family: 'IBM Plex Mono', monospace;
   margin-top: 2px;
 }
@@ -446,6 +447,7 @@ body {
   font-size: 0.75rem;
   color: var(--paper);
   white-space: nowrap;
+  opacity: 70%;
 }
 
 .week-card-question {
