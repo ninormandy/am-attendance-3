@@ -10,7 +10,7 @@ function formatTime(seconds) {
 }
 
 export default function CheckInPage() {
-  // step: 'loading' | 'closed' | 'capture' | 'entry' | 'quiz' | 'done' | 'already'
+  // step: 'loading' | 'pc_blocked' | 'closed' | 'capture' | 'entry' | 'quiz' | 'done' | 'already'
   const [step, setStep] = useState('loading');
   const [week, setWeek] = useState(null);
 
@@ -50,6 +50,17 @@ export default function CheckInPage() {
 
   // Load active week session
   useEffect(() => {
+    // 🛡️ ANTI-PC GATING MECHANISM
+    const ua = navigator.userAgent.toLowerCase();
+    const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(ua);
+    const hasTouchCapabilities = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    
+    // Hard check: If it's a desktop PC web layer, prevent app interaction immediately
+    if (!isMobileDevice && !hasTouchCapabilities) {
+      setStep('pc_blocked');
+      return;
+    }
+
     fetch('/api/attendance/current')
       .then((r) => r.json())
       .then((data) => {
@@ -61,7 +72,6 @@ export default function CheckInPage() {
           if (deviceLock) {
             setStep('already');
           } else {
-            // FLOW CHANGE: First step is now strictly taking a picture
             setStep('capture');
           }
         } else {
@@ -113,7 +123,7 @@ export default function CheckInPage() {
   const handleConfirmPhoto = (e) => {
     e.preventDefault();
     if (!photo) return alert('กรุณาถ่ายรูปภาพหลักฐานก่อนเข้าหน้าถัดไป');
-    setStep('entry'); // Camera verification passed, proceed to Student ID entry
+    setStep('entry'); 
   };
 
   // Handle Student ID Lookup
@@ -139,7 +149,7 @@ export default function CheckInPage() {
         setStudentName(data.student.name);
         setAnswer('');
         setSubmitError('');
-        setStep('quiz'); // Transition to quiz phase, which kicks off the countdown timer!
+        setStep('quiz');
       }
     } catch {
       setLookupError('เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่');
@@ -160,19 +170,18 @@ export default function CheckInPage() {
 
     const fingerprint = getDeviceFingerprint();
 
-    // Use FormData to compile field strings along with our raw image binary blob
     const formData = new FormData();
     formData.append('week_id', week.id);
     formData.append('student_id', studentId);
     formData.append('answer', answerOverride !== undefined ? answerOverride : answer);
     formData.append('seconds_taken', secondsTaken);
-    formData.append('photo', photo); // Attached image binary loaded in step 1
+    formData.append('photo', photo);
     formData.append('fingerprint', fingerprint);
 
     try {
       const res = await fetch('/api/attendance/submit', {
         method: 'POST',
-        body: formData, // Formidable middleware endpoint processes this on backend
+        body: formData,
       });
       const data = await res.json();
       
@@ -215,6 +224,26 @@ export default function CheckInPage() {
 
         {/* ── LOADING ── */}
         {step === 'loading' && <p className="text-muted">กำลังโหลด…</p>}
+
+        {/* ── 🛡️ PC LOCKOUT BLOCKED OVERLAY VIEW ── */}
+        {step === 'pc_blocked' && (
+          <div className="ticket" style={{ maxWidth: 420, textAlign: 'center' }}>
+            <div className="ticket-stub" style={{ justifyContent: 'center' }}>
+              <span className="status-dot live" style={{ backgroundColor: '#ef4444' }} />
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ef4444' }}>
+                อุปกรณ์ไม่ได้รับอนุญาต / Device Blocked
+              </span>
+            </div>
+            <div className="ticket-divider" />
+            <div className="ticket-body" style={{ padding: '2.5rem 1.5rem' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📱</div>
+              <h3 style={{ marginBottom: '0.5rem', color: 'var(--ink)' }}>ไม่อนุญาตให้ใช้งานผ่านคอมพิวเตอร์ (PC)</h3>
+              <p style={{ color: 'var(--ink-mid)', fontSize: '0.9rem', lineHeight: 1.5 }}>
+                ระบบต้องการหลักฐานการบันทึกภาพถ่ายสดสภาพแวดล้อมชั้นเรียนผ่าน **กล้องมือถือหรือแท็บเล็ตเท่านั้น** กรุณาใช้โทรศัพท์มือถือสมาร์ทโฟนเปิดลิงก์นี้เพื่อดำเนินการเช็คชื่อเข้าเรียนครับ
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ── CLOSED ── */}
         {step === 'closed' && (
@@ -330,7 +359,7 @@ export default function CheckInPage() {
           </div>
         )}
 
-        {/* ── STEP 3: QUIZ (countdown + question + answer) ── */}
+        {/* ── STEP 3: QUIZ ── */}
         {step === 'quiz' && week && (
           <div className="ticket">
             <div className="ticket-stub">
