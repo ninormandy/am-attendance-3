@@ -10,22 +10,20 @@ function formatTime(seconds) {
 }
 
 export default function CheckInPage() {
-  // step: 'loading' | 'closed' | 'capture' | 'entry' | 'quiz' | 'done' | 'already'
+  // step: 'loading' | 'pc_blocked' | 'closed' | 'capture' | 'entry' | 'quiz' | 'done' | 'already'
   const [step, setStep] = useState('loading');
   const [week, setWeek] = useState(null);
-  const [isDesktop, setIsDesktop] = useState(false);
 
-  // Capture step states
+  // Capture step
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
-  const [cameraActive, setCameraActive] = useState(false);
 
-  // Entry step states
+  // Entry step
   const [inputId, setInputId] = useState('');
   const [lookupError, setLookupError] = useState('');
   const [looking, setLooking] = useState(false);
 
-  // Quiz step states
+  // Quiz step
   const [studentId, setStudentId] = useState('');
   const [studentName, setStudentName] = useState('');
   const [answer, setAnswer] = useState('');
@@ -33,13 +31,10 @@ export default function CheckInPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
-  // Done step state
+  // Done step
   const [doneRecord, setDoneRecord] = useState(null);
 
   const answerRef = useRef('');
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
-
   useEffect(() => { answerRef.current = answer; }, [answer]);
 
   // Helper utility: Compute client-side hardware fingerprint
@@ -53,15 +48,17 @@ export default function CheckInPage() {
     return btoa(hardwareToken);
   }
 
-  // Detect Device Environment and Load Week Data
+  // Load active week session
   useEffect(() => {
+    // 🛡️ ANTI-PC GATING MECHANISM
     const ua = navigator.userAgent.toLowerCase();
     const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(ua);
     const hasTouchCapabilities = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     
-    // Set desktop flag if mobile layout signals are absent
+    // Hard check: If it's a desktop PC web layer, prevent app interaction immediately
     if (!isMobileDevice && !hasTouchCapabilities) {
-      setIsDesktop(true);
+      setStep('pc_blocked');
+      return;
     }
 
     fetch('/api/attendance/current')
@@ -69,6 +66,8 @@ export default function CheckInPage() {
       .then((data) => {
         if (data.open) {
           setWeek(data.week);
+          
+          // Check for hardware lockout token
           const deviceLock = localStorage.getItem(`submitted_week_${data.week.id}`);
           if (deviceLock) {
             setStep('already');
@@ -101,62 +100,8 @@ export default function CheckInPage() {
     return () => clearInterval(interval);
   }, [step]);
 
-  // Clean up WebRTC hardware streams if component unmounts
-  useEffect(() => {
-    return () => stopWebcamStream();
-  }, []);
-
-  // WebRTC Stream Controllers
-  async function startWebcamStream() {
-    setPhotoPreview(null);
-    setPhoto(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480, facingMode: 'user' },
-        audio: false
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      setCameraActive(true);
-    } catch (err) {
-      alert('ไม่สามารถเข้าถึงกล้องเว็บแคมได้ กรุณาอนุญาตให้ระบบเข้าถึงกล้องถ่ายภาพของคุณ');
-    }
-  }
-
-  function stopWebcamStream() {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    setCameraActive(false);
-  }
-
-  function captureWebcamSnapshot() {
-    if (!videoRef.current) return;
-    const video = videoRef.current;
-    
-    // Create an offscreen dynamic canvas rendering context
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    
-    // Convert current pixel mapping to raw image blob structure
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      const file = new File([blob], `webcam_${Date.now()}.jpg`, { type: 'image/jpeg' });
-      setPhoto(file);
-      setPhotoPreview(URL.createObjectURL(file));
-      stopWebcamStream();
-    }, 'image/jpeg', 0.85);
-  }
-
-  // Handle Standard Mobile Native Capture
-  const handleMobilePhotoCapture = (e) => {
+  // Handle Photo Capture
+  const handlePhotoCapture = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -172,11 +117,9 @@ export default function CheckInPage() {
   const clearPhotoAndRetake = () => {
     setPhoto(null);
     setPhotoPreview(null);
-    if (isDesktop) {
-      startWebcamStream();
-    }
   };
 
+  // Move from Photo to ID Entry
   const handleConfirmPhoto = (e) => {
     e.preventDefault();
     if (!photo) return alert('กรุณาถ่ายรูปภาพหลักฐานก่อนเข้าหน้าถัดไป');
@@ -282,6 +225,26 @@ export default function CheckInPage() {
         {/* ── LOADING ── */}
         {step === 'loading' && <p className="text-muted">กำลังโหลด…</p>}
 
+        {/* ── 🛡️ PC LOCKOUT BLOCKED OVERLAY VIEW ── */}
+        {step === 'pc_blocked' && (
+          <div className="ticket" style={{ maxWidth: 420, textAlign: 'center' }}>
+            <div className="ticket-stub" style={{ justifyContent: 'center' }}>
+              <span className="status-dot live" style={{ backgroundColor: '#ef4444' }} />
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ef4444' }}>
+                อุปกรณ์ไม่ได้รับอนุญาต / Device Blocked
+              </span>
+            </div>
+            <div className="ticket-divider" />
+            <div className="ticket-body" style={{ padding: '2.5rem 1.5rem' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📱</div>
+              <h3 style={{ marginBottom: '0.5rem', color: 'var(--ink)' }}>ไม่อนุญาตให้ใช้งานผ่านคอมพิวเตอร์ (PC)</h3>
+              <p style={{ color: 'var(--ink-mid)', fontSize: '0.9rem', lineHeight: 1.5 }}>
+                ระบบต้องการหลักฐานการบันทึกภาพถ่ายสดสภาพแวดล้อมชั้นเรียนผ่าน **กล้องมือถือหรือแท็บเล็ตเท่านั้น** กรุณาใช้โทรศัพท์มือถือสมาร์ทโฟนเปิดลิงก์นี้เพื่อดำเนินการเช็คชื่อเข้าเรียนครับ
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* ── CLOSED ── */}
         {step === 'closed' && (
           <div className="ticket" style={{ maxWidth: 420, textAlign: 'center' }}>
@@ -318,34 +281,7 @@ export default function CheckInPage() {
             </div>
             <div className="ticket-divider" />
             <div className="ticket-body" style={{ textAlign: 'center' }}>
-              
-              {/* DESKTOP PC INTERFACE ROUTE (WebRTC Camera, No File Upload Allowed) */}
-              {isDesktop && (
-                <div>
-                  {!cameraActive && !photoPreview && (
-                    <div style={{ padding: '1.5rem 0' }}>
-                      <p style={{ marginBottom: '1.5rem', color: 'var(--ink-mid)' }}>
-                        ระบบตรวจพบการใช้งานผ่านคอมพิวเตอร์ กรุณากดปุ่มเปิดกล้องเว็บแคมเพื่อถ่ายภาพสดหน้าชั้นเรียน (ห้ามอัปโหลดรูปภาพ)
-                      </p>
-                      <button type="button" className="btn btn-marquee btn-full" onClick={startWebcamStream}>
-                        📷 เปิดกล้องเว็บแคมเครื่อง PC
-                      </button>
-                    </div>
-                  )}
-
-                  {cameraActive && (
-                    <div style={{ position: 'relative', overflow: 'hidden', borderRadius: '6px', backgroundColor: '#000', maxWidth: '100%', width: '480px', margin: '0 auto' }}>
-                      <video ref={videoRef} autoPlay playsInline style={{ width: '100%', display: 'block', transform: 'scaleX(-1)' }} />
-                      <button type="button" className="btn btn-marquee" onClick={captureWebcamSnapshot} style={{ position: 'absolute', bottom: '15px', left: '50%', transform: 'translateX(-50%)', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
-                        📸 กดถ่ายรูปภาพ (Take Photo)
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* MOBILE PHONE INTERFACE ROUTE (Locked Native Capture) */}
-              {!isDesktop && !photoPreview && (
+              {!photoPreview ? (
                 <div style={{ padding: '1.5rem 0' }}>
                   <p style={{ marginBottom: '1.5rem', color: 'var(--ink-mid)' }}>
                     กรุณากดปุ่มด้านล่างเพื่อเปิดกล้อง และถ่ายภาพเซลฟี่ให้เห็นอาจารย์บอลเพื่อเป็นหลักฐานการเข้าเรียน
@@ -356,15 +292,12 @@ export default function CheckInPage() {
                       type="file" 
                       accept="image/*" 
                       capture="environment" 
-                      onChange={handleMobilePhotoCapture} 
+                      onChange={handlePhotoCapture} 
                       style={{ display: 'none' }} 
                     />
                   </label>
                 </div>
-              )}
-
-              {/* CONFIRMATION OVERLAY PREVIEW VIEW (Shared across both flows) */}
-              {photoPreview && (
+              ) : (
                 <div>
                   <img 
                     src={photoPreview} 
