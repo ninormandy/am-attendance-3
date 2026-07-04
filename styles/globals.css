@@ -123,6 +123,7 @@ body {
   font-size: 3.2rem;
   color: var(--marquee);
   line-height: 1;
+  text-align: center;
 }
 
 .ticket-stub .stub-info {
@@ -431,6 +432,7 @@ body {
   color: var(--marquee);
   line-height: 1;
   flex-shrink: 0;
+  text-align: center;
 }
 
 .wk-num-label {
