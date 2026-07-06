@@ -189,7 +189,7 @@ export default function CheckInPage() {
         localStorage.setItem(`submitted_week_${week.id}`, 'true');
         setStep('already');
       } else if (res.status === 403) {
-        setSubmitError('การเช็คชื่อถูกปิดแล้ว กรุณาติดต่ออาจารย์บอล');
+        setSubmitError('การเช็คชื่อถูกปิดแล้ว กรุณาติดต่ออาจารย์ผู้สอน');
         setStep('closed');
       } else if (!res.ok) {
         setSubmitError(data.error || 'ส่งไม่สำเร็จ กรุณาลองใหม่');
@@ -257,7 +257,7 @@ export default function CheckInPage() {
             <div className="ticket-divider" />
             <div className="ticket-body" style={{ padding: '2rem 1.5rem' }}>
               <p style={{ color: 'var(--ink-mid)', fontSize: '0.9rem' }}>
-                กรุณารอจนกว่าอาจารย์บอลจะเปิดการเช็คชื่อ แล้วรีเฟรชหน้านี้
+                กรุณารอจนกว่าอาจารย์ผู้สอนจะเปิดการเช็คชื่อ แล้วรีเฟรชหน้านี้
               </p>
             </div>
           </div>
@@ -274,7 +274,7 @@ export default function CheckInPage() {
               <div className="stub-info">
                 <div className="stub-title">
                   <span className="status-dot live" />
-                  ขั้นตอนที่ 1: ถ่ายภาพตนเองกับบรรยากาศภายในห้องเรียน โดยต้องถ่ายติดอาจารย์บอลเท่านั้น จึงจะเช็คชื่อผ่าน
+                  ขั้นตอนที่ 1: ถ่ายภาพตนเองกับบรรยากาศภายในห้องเรียน โดยต้องถ่ายติดอาจารย์ผู้สอนเท่านั้น จึงจะเช็คชื่อผ่าน
                 </div>
                 <div className="stub-meta">ต้องถ่ายรูปภาพเพื่อทำควิซ</div>
               </div>
@@ -284,7 +284,7 @@ export default function CheckInPage() {
               {!photoPreview ? (
                 <div style={{ padding: '1.5rem 0' }}>
                   <p style={{ marginBottom: '1.5rem', color: 'var(--ink-mid)' }}>
-                    กรุณากดปุ่มด้านล่างเพื่อเปิดกล้อง และถ่ายภาพเซลฟี่ให้เห็นอาจารย์บอลเพื่อเป็นหลักฐานการเข้าเรียน
+                    กรุณากดปุ่มด้านล่างเพื่อเปิดกล้อง และถ่ายภาพเซลฟี่ให้เห็นอาจารย์ผู้สอนเพื่อเป็นหลักฐานการเข้าเรียน
                   </p>
                   <label className="btn btn-marquee btn-full" style={{ display: 'inline-block', cursor: 'pointer', textAlign: 'center' }}>
                     📷 เปิดกล้องถ่ายภาพ
@@ -418,7 +418,7 @@ export default function CheckInPage() {
               <p style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--ink)' }}>{studentName}</p>
               <p className="mono" style={{ color: 'var(--ink-mid)', fontSize: '0.85rem', marginTop: '0.25rem' }}>{studentId}</p>
               <p className="mt-3" style={{ color: 'var(--ink-mid)', fontSize: '0.9rem' }}>
-                ระบบได้แนบภาพถ่ายหลักฐานของคุณส่งให้อาจารย์บอลเรียบร้อยแล้ว สามารถปิดหน้านี้ได้เลยครับ
+                ระบบได้แนบภาพถ่ายหลักฐานของคุณส่งให้อาจารย์ผู้สอนเรียบร้อยแล้ว สามารถปิดหน้านี้ได้เลยครับ
               </p>
             </div>
           </div>
