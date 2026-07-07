@@ -48,14 +48,13 @@ export default function CheckInPage() {
     return btoa(hardwareToken);
   }
 
-  // Load active week session
+ // Load active week session
   useEffect(() => {
     // 🛡️ ANTI-PC GATING MECHANISM
     const ua = navigator.userAgent.toLowerCase();
     const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(ua);
     const hasTouchCapabilities = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     
-    // Hard check: If it's a desktop PC web layer, prevent app interaction immediately
     if (!isMobileDevice && !hasTouchCapabilities) {
       setStep('pc_blocked');
       return;
@@ -64,12 +63,14 @@ export default function CheckInPage() {
     fetch('/api/attendance/current')
       .then((r) => r.json())
       .then((data) => {
-        if (data.open) {
+        if (data.open && data.week && data.week.id) {
           setWeek(data.week);
           
-          // Check for hardware lockout token
+          // 🎯 แก้ไข: ใช้ data.week.id ตรง ๆ แทนการใช้ week.id จาก State
           const deviceLock = localStorage.getItem(`submitted_week_${data.week.id}`);
-          if (deviceLock) {
+          
+          // 🎯 แก้ไข: เจาะจงเช็คสตริง 'true' เท่านั้น ป้องกันกรณีค่าว่างหรือ undefined
+          if (deviceLock === 'true') {
             setStep('already');
           } else {
             setStep('capture');
@@ -126,14 +127,22 @@ export default function CheckInPage() {
     setStep('entry'); 
   };
 
-  // Handle Student ID Lookup
+// Handle Student ID Lookup
   async function handleLookup(e) {
     e.preventDefault();
+    
+    // 🛡️ เพิ่มเงื่อนไขเซฟตี้: ถ้าข้อมูลสัปดาห์ยังโหลดไม่เสร็จ ห้ามก้าวข้ามหน้าเด็ดขาด
+    if (!week || !week.id) {
+      alert('ระบบกำลังดึงข้อมูลสัปดาห์เรียน กรุณารอ 2-3 วินาทีแล้วกดใหม่อีกครั้งครับ');
+      return;
+    }
+
     setLookupError('');
     setLooking(true);
 
+    // 🎯 แก้ไข: ป้องกันการดึงคีย์หลอก เช็คเฉพาะคีย์ที่ผูกกับ ID สัปดาห์จริงเท่านั้น
     const deviceLock = localStorage.getItem(`submitted_week_${week.id}`);
-    if (deviceLock) {
+    if (deviceLock === 'true') {
       setStep('already');
       setLooking(false);
       return;
