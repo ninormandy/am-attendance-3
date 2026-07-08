@@ -1,5 +1,5 @@
 // pages/api/attendance/submit.js
-// 🛡️ Advanced Digital Forensics Core Patch - Resolved Constraint Interlocking
+// 🛡️ Advanced Digital Forensics Core Patch v2 (Anti-Multi-Row Trap) - By Dr.Hackerman
 import { supabaseAdmin } from '../../../lib/supabaseAdmin';
 import formidable from 'formidable';
 import crypto from 'crypto';
@@ -79,7 +79,7 @@ export default async function handler(req, res) {
         return res.status(404).json({ success: false, error: 'ไม่พบรหัสนักศึกษานี้ในระบบฐานข้อมูลหลัก' });
       }
 
-      // 🛡️ Strict Duplication Gate Check: Verify if the real student ID has an active row matching the target week UUID
+      // 🛡️ Strict Duplication Gate Check
       const { data: existingRecord, error: checkError } = await supabaseAdmin
         .from('attendance_records')
         .select('id')
@@ -98,33 +98,41 @@ export default async function handler(req, res) {
         });
       }
 
-      // 🧠 [DIGITAL FORENSICS WORKFLOW] Hash the binary asset via non-blocking file processing
+      // 🧠 [DIGITAL FORENSICS WORKFLOW] Hash binary file
       const fileBuffer = await fs.promises.readFile(tempFilePath);
       const imageHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
-      // Interrogate the database for visual pattern overlap
-      const { data: duplicateImage } = await supabaseAdmin
+      // 🎯 [CRITICAL REFACTOR BY DR.HACKERMAN] เปลี่ยนโครงสร้างมาใช้ .limit(1) เพื่อทลายบั๊ก Multi-row Exception
+      
+      // 1. ตรวจสอบรูปภาพซ้ำ (คัดเลือกมาแค่ 1 แถวล่าสุดที่มีประวัติชนกัน)
+      const { data: dupImageRows } = await supabaseAdmin
         .from('attendance_records')
         .select('student_id')
         .eq('week_id', week_id)
         .eq('image_hash', imageHash)
-        .maybeSingle();
+        .limit(1);
+      const duplicateImage = dupImageRows && dupImageRows.length > 0 ? dupImageRows[0] : null;
 
-      // Interrogate the database for hardware token overlap (Silent Tracking)
-      const { data: duplicateFingerprint } = fingerprint_raw ? await supabaseAdmin
-        .from('attendance_records')
-        .select('student_id')
-        .eq('week_id', week_id)
-        .eq('device_fingerprint', fingerprint_raw)
-        .maybeSingle() : { data: null };
+      // 2. ตรวจสอบ Hardware Fingerprint ซ้ำ (คัดเลือกมาแค่ 1 แถวล่าสุดที่มีประวัติชนกัน)
+      let duplicateFingerprint = null;
+      if (fingerprint_raw) {
+        const { data: dupFingerprintRows } = await supabaseAdmin
+          .from('attendance_records')
+          .select('student_id')
+          .eq('week_id', week_id)
+          .eq('device_fingerprint', fingerprint_raw)
+          .limit(1);
+        duplicateFingerprint = dupFingerprintRows && dupFingerprintRows.length > 0 ? dupFingerprintRows[0] : null;
+      }
 
-      // Interrogate the database for network trace context mapping
-      const { data: duplicateIP } = await supabaseAdmin
+      // 3. ตรวจสอบพิกัด IP เน็ตเวิร์กชนกัน (คัดเลือกมาแค่ 1 แถวล่าสุดที่มีประวัติชนกัน)
+      const { data: dupIPRows } = await supabaseAdmin
         .from('attendance_records')
         .select('student_id')
         .eq('week_id', week_id)
         .eq('ip_address', ipAddress)
-        .maybeSingle();
+        .limit(1);
+      const duplicateIP = dupIPRows && dupIPRows.length > 0 ? dupIPRows[0] : null;
 
       // Core Intelligence Evaluation Matrix (Determines Admin Dashboard Signals)
       let adminVerificationStatus = 'pending';
@@ -137,7 +145,6 @@ export default async function handler(req, res) {
         adminVerificationStatus = 'suspicious';
         adminVerificationNotes = `⚠️ SUSPICIOUS: ฮาร์ดแวร์ Token ซ้ำกับรหัสนักศึกษา ${duplicateFingerprint.student_id}`;
       } else if (duplicateIP && duplicateIP.student_id !== student.student_id) {
-        // Shared Wi-Fi gateway logging (Kept as pending to minimize false audit detections)
         adminVerificationNotes = `ℹ️ Shared Network IP detected with student ${duplicateIP.student_id}`;
       }
 
