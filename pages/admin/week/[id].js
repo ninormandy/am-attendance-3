@@ -1,3 +1,5 @@
+// pages/admin/weeks/[id].js
+// 🛡️ Advanced Admin Forensics & Manual Overrides Controller by Dr.Hackerman
 import { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
@@ -37,6 +39,7 @@ export default function WeekDetailPage() {
     return () => clearInterval(intervalRef.current);
   }, [id]);
 
+  // 🎯 คงคอลัมน์เดิมไว้: ฟังก์ชันจัดการอัปเดตสถานะแบบแมนนวลโดยแอดมิน
   async function handleUpdateStatus(recordId, targetStatus) {
     try {
       const res = await fetch('/api/admin/verify', {
@@ -77,7 +80,6 @@ export default function WeekDetailPage() {
     }
   }
 
-  // NEW FEATURE: Delete handler with window verification modal
   async function handleDeleteWeek() {
     const confirmed = window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบสัปดาห์นี้? การลบจะทำลายข้อมูลภาพถ่ายและประวัติการเช็คชื่อทั้งหมดในสัปดาห์นี้อย่างถาวร');
     if (!confirmed) return;
@@ -87,7 +89,7 @@ export default function WeekDetailPage() {
       const res = await fetch(`/api/weeks/${id}/delete`, { method: 'DELETE' });
       if (res.ok) {
         alert('ลบสัปดาห์เรียบร้อยแล้ว');
-        router.push('/admin/dashboard'); // Redirect back to general dashboard layout
+        router.push('/admin/dashboard');
       } else {
         const data = await res.json();
         setActionError(data.error || 'ไม่สามารถลบสัปดาห์ได้');
@@ -151,7 +153,6 @@ export default function WeekDetailPage() {
             ↓ Export Excel
           </a>
 
-          {/* NEW DEREGISTRATION BUTTON INTEGRATED CLEANLY */}
           <button 
             className="btn btn-danger btn-ghost" 
             onClick={handleDeleteWeek}
@@ -214,16 +215,39 @@ export default function WeekDetailPage() {
                 <tr>
                   <th style={{ width: '50px' }}>#</th>
                   <th style={{ width: '120px' }}>รหัสนักเรียน</th>
-                  <th style={{ minWidth: '200px' }}>ชื่อ-นามสกุล</th>
-                  <th style={{ width: '120px' }}>เวลาเช็คชื่อ</th>
+                  <th style={{ minWidth: '180px' }}>ชื่อ-นามสกุล</th>
+                  <th style={{ width: '110px' }}>เวลาเช็คชื่อ</th>
                   <th style={{ width: '90px' }}>ภาพหลักฐาน</th>
-                  <th style={{ minWidth: '350px' }}>คำตอบ</th>
+                  <th style={{ minWidth: '220px' }}>คำตอบ</th>
+                  {/* 🎯 แทรกคอลัมน์หมายเหตุความปลอดภัยดิจิทัลเพิ่มเข้ามาควบคู่กับปุ่มจัดการแมนนวล */}
+                  <th style={{ minWidth: '260px' }}>หมายเหตุระบบสืบค้น (Forensics Notes)</th>
                   <th style={{ width: '160px', textAlign: 'center' }}>สถานะการตรวจสอบ</th>
                 </tr>
               </thead>
               <tbody>
                 {records.map((r, i) => (
-                  <tr key={r.id} className={r.verification_status === 'rejected' ? 'rejected-row' : ''}>
+                  <tr 
+                    key={r.id} 
+                    className={
+                      r.verification_status === 'rejected' 
+                        ? 'rejected-row' 
+                        : r.verification_status === 'flagged'
+                        ? 'flagged-row'
+                        : r.verification_status === 'suspicious'
+                        ? 'suspicious-row'
+                        : ''
+                    }
+                    style={{
+                      backgroundColor:
+                        r.verification_status === 'rejected'
+                          ? 'rgba(239, 68, 68, 0.15)' // สีแดงเข้มเมื่อกด Reject ทิ้ง
+                          : r.verification_status === 'flagged'
+                          ? 'rgba(239, 68, 68, 0.06)' // สีแดงเรื่อ ๆ สำหรับเคสตรวจจับรูปซ้ำอัตโนมัติ
+                          : r.verification_status === 'suspicious'
+                          ? 'rgba(245, 158, 11, 0.06)' // สีส้มเรื่อ ๆ สำหรับเคสเน็ตเวิร์ก IP ชนกัน
+                          : 'inherit'
+                    }}
+                  >
                     <td className="mono text-muted">{i + 1}</td>
                     <td className="mono">{r.student_id}</td>
                     
@@ -261,8 +285,16 @@ export default function WeekDetailPage() {
                       {r.answer || <span className="text-muted">—</span>}
                     </td>
 
+                    {/* 🎯 แสดงผลหมายเหตุสืบสวนทุจริตหลังบ้านเพื่อให้แอดมินใช้พิจารณาประกอบการกดปุ่ม */}
+                    <td style={{ fontSize: '0.88rem', fontWeight: r.verification_status !== 'pending' && r.verification_status !== 'approved' ? '600' : 'normal' }}>
+                      {r.verification_notes || r.verificationNotes || (
+                        <span className="text-muted" style={{ fontStyle: 'italic' }}>ปกติ / คลีน</span>
+                      )}
+                    </td>
+
+                    {/* 🎯 คอลัมน์จัดการแมนนวลดั้งเดิม อนุมัติ/ปฏิเสธ ได้รับการปกป้องไว้ครบถ้วนสมบูรณ์ */}
                     <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
-                      {r.verification_status === 'pending' ? (
+                      {r.verification_status === 'pending' || r.verification_status === 'flagged' || r.verification_status === 'suspicious' ? (
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button 
                             className="btn btn-ghost" 
