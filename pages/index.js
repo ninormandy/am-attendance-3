@@ -92,7 +92,6 @@ export default function CheckInPage() {
       return;
     }
 
-    // ล้างทรัพยากรตัวเก่าออกจากแรม เพื่อป้องกันบราวเซอร์ค้างในกรณีเด็กกดถ่ายเล่นหลายรอบ
     if (photoPreview) {
       URL.revokeObjectURL(photoPreview);
     }
@@ -175,20 +174,19 @@ export default function CheckInPage() {
       });
       const data = await res.json();
       
-      // 🎯 ปรับปรุงตรรกะคัดกรอง: แยกแยะสถานะผิดพลาดและสำเร็จอย่างชัดเจน ไม่ใช้หน้าจอหลอก
-      if (res.status === 409 || data.success === false || data.error?.includes('สัปดาห์นี้ไปแล้ว')) {
-        // ถ้ารหัสนักศึกษาคนนี้เคยบันทึกไปแล้วในฐานข้อมูล ให้ดีดไปหน้าตรวจสอบส่งซ้ำทันทีเพื่อความถูกต้อง
+      // 🎯 แก้ไขบั๊กระเบิดสเตต: แยกแยะสถานะการตรวจสอบความซ้ำซ้อนอย่างรัดกุมผ่าน HTTP Status และ Data Code อย่างเป็นระบบ
+      if (res.status === 409 || data.code === 'DUPLICATE_ATTENDANCE') {
         setStep('already');
         setSubmitting(false);
-      } else if (res.status === 403 || data.error?.includes('ถูกปิดแล้ว')) {
+      } else if (res.status === 403) {
         setSubmitError(data.error || 'การเช็คชื่อถูกปิดแล้ว กรุณาติดต่ออาจารย์ผู้สอน');
         setStep('closed');
         setSubmitting(false);
-      } else if (!res.ok) {
+      } else if (!res.ok || data.success === false) {
         setSubmitError(data.error || 'ส่งไม่สำเร็จ กรุณาลองใหม่');
         setSubmitting(false);
       } else {
-        // บันทึกสำเร็จจริงทางสถาปัตยกรรม Relational Database
+        // บันทึกสำเร็จจริง (HTTP 200/201 และ success === true)
         setDoneRecord(data.record);
         setStep('done');
       }
@@ -217,26 +215,6 @@ export default function CheckInPage() {
 
         {/* ── LOADING ── */}
         {step === 'loading' && <p className="text-muted">กำลังโหลด…</p>}
-
-        {/* ── 🛡️ PC LOCKOUT BLOCKED OVERLAY VIEW ── */}
-        {step === 'pc_blocked' && (
-          <div className="ticket" style={{ maxWidth: 420, textAlign: 'center' }}>
-            <div className="ticket-stub" style={{ justifyContent: 'center' }}>
-              <span className="status-dot live" style={{ backgroundColor: '#ef4444' }} />
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ef4444' }}>
-                อุปกรณ์นี้ไม่สามารถใช้ได้ / Device Blocked
-              </span>
-            </div>
-            <div className="ticket-divider" />
-            <div className="ticket-body" style={{ padding: '2.5rem 1.5rem' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📱</div>
-              <h3 style={{ marginBottom: '0.5rem', color: 'var(--ink)' }}>ไม่สามารถใช้งานผ่าน Laptop หรือ Mac ได้</h3>
-              <p style={{ color: 'var(--ink-mid)', fontSize: '0.9rem', lineHeight: 1.5 }}>
-                กรุณาใช้โทรศัพท์มือถือสมาร์ทโฟนหรือแท็บเล็ตเปิดลิงก์นี้เพื่อดำเนินการเช็คชื่อเข้าเรียนครับ
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* ── CLOSED ── */}
         {step === 'closed' && (
@@ -267,9 +245,9 @@ export default function CheckInPage() {
               <div className="stub-info">
                 <div className="stub-title">
                   <span className="status-dot live" />
-                  ขั้นตอนที่ 1: ถ่ายภาพตนเองกับบรรยากาศภายในห้องเรียน โดยต้องถ่ายติดอาจารย์ผู้สอนเท่านั้น จึงจะเช็คชื่อผ่าน
+                  ขั้นตอนที่ 1: ถ่ายภาพตนเองในชั้นเรียน
                 </div>
-                <div className="stub-meta">ต้องถ่ายรูปภาพเพื่อทำควิซ</div>
+                <div className="stub-meta">กรุณาแนบรูปภาพเพื่อเข้าทำควิซประจำสัปดาห์</div>
               </div>
             </div>
             <div className="ticket-divider" />
