@@ -50,32 +50,11 @@ export default function CheckInPage() {
 
   // Load active week session
   useEffect(() => {
-    // 🛡️ ANTI-PC GATING MECHANISM (TEMPORARILY DISABLED)
-    /* const ua = navigator.userAgent.toLowerCase();
-    const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(ua);
-    const hasTouchCapabilities = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    
-    if (!isMobileDevice && !hasTouchCapabilities) {
-      setStep('pc_blocked');
-      return;
-    }
-    */
-
     fetch('/api/attendance/current')
       .then((r) => r.json())
       .then((data) => {
-        if (data.open) {
+        if (data.open && data.week && data.week.id) {
           setWeek(data.week);
-          
-          // 🛡️ DEVICE RESUBMISSION LOCKOUT (TEMPORARILY DISABLED)
-          /*
-          const deviceLock = localStorage.getItem(`submitted_week_${data.week.id}`);
-          if (deviceLock) {
-            setStep('already');
-          } else {
-            setStep('capture');
-          }
-          */
           setStep('capture');
         } else {
           setStep('closed');
@@ -113,11 +92,19 @@ export default function CheckInPage() {
       return;
     }
 
+    // ล้างทรัพยากรตัวเก่าออกจากแรม เพื่อป้องกันบราวเซอร์ค้างในกรณีเด็กกดถ่ายเล่นหลายรอบ
+    if (photoPreview) {
+      URL.revokeObjectURL(photoPreview);
+    }
+
     setPhoto(file);
     setPhotoPreview(URL.createObjectURL(file));
   };
 
   const clearPhotoAndRetake = () => {
+    if (photoPreview) {
+      URL.revokeObjectURL(photoPreview);
+    }
     setPhoto(null);
     setPhotoPreview(null);
   };
@@ -132,18 +119,14 @@ export default function CheckInPage() {
   // Handle Student ID Lookup
   async function handleLookup(e) {
     e.preventDefault();
-    setLookupError('');
-    setLooking(true);
-
-    // 🛡️ LOOKUP RESUBMISSION CHECK (TEMPORARILY DISABLED)
-    /*
-    const deviceLock = localStorage.getItem(`submitted_week_${week.id}`);
-    if (deviceLock) {
-      setStep('already');
-      setLooking(false);
+    
+    if (!week || !week.id) {
+      alert('ระบบกำลังดึงข้อมูลเซสชันสัปดาห์เรียน กรุณารอสักครู่แล้วกดใหม่อีกครั้งครับ');
       return;
     }
-    */
+
+    setLookupError('');
+    setLooking(true);
 
     try {
       const res = await fetch(`/api/attendance/lookup?student_id=${encodeURIComponent(inputId.trim())}`);
@@ -168,11 +151,12 @@ export default function CheckInPage() {
   async function submitAnswer(secondsUsedOverride, answerOverride) {
     if (submitting) return;
     setSubmitting(true);
+    setSubmitError('');
     
     const secondsTaken =
       secondsUsedOverride != null
         ? CHECKIN_SECONDS - secondsUsedOverride
-        : CHECKIN_SECONDS - timeLeft;
+        : Math.max(0, CHECKIN_SECONDS - timeLeft);
 
     const fingerprint = getDeviceFingerprint();
 
@@ -180,7 +164,7 @@ export default function CheckInPage() {
     formData.append('week_id', week.id);
     formData.append('student_id', studentId);
     formData.append('answer', answerOverride !== undefined ? answerOverride : answer);
-    formData.append('seconds_taken', secondsTaken);
+    formData.append('seconds_taken', String(secondsTaken));
     formData.append('photo', photo);
     formData.append('fingerprint', fingerprint);
 
@@ -191,23 +175,25 @@ export default function CheckInPage() {
       });
       const data = await res.json();
       
-      // 🛡️ FORCED RESUBMISSION ACCEPTANCE FOR CLIENT TESTING
-      if (res.status === 409 || data.error?.includes('เช็คชื่อไปแล้ว')) {
-        // Bypass backend conflict responses and simulate success screen anyway
-        setDoneRecord(data.record || { student_id: studentId });
-        setStep('done');
-      } else if (res.status === 403) {
-        setSubmitError('การเช็คชื่อถูกปิดแล้ว กรุณาติดต่ออาจารย์ผู้สอน');
+      // 🎯 ปรับปรุงตรรกะคัดกรอง: แยกแยะสถานะผิดพลาดและสำเร็จอย่างชัดเจน ไม่ใช้หน้าจอหลอก
+      if (res.status === 409 || data.success === false || data.error?.includes('สัปดาห์นี้ไปแล้ว')) {
+        // ถ้ารหัสนักศึกษาคนนี้เคยบันทึกไปแล้วในฐานข้อมูล ให้ดีดไปหน้าตรวจสอบส่งซ้ำทันทีเพื่อความถูกต้อง
+        setStep('already');
+        setSubmitting(false);
+      } else if (res.status === 403 || data.error?.includes('ถูกปิดแล้ว')) {
+        setSubmitError(data.error || 'การเช็คชื่อถูกปิดแล้ว กรุณาติดต่ออาจารย์ผู้สอน');
         setStep('closed');
+        setSubmitting(false);
       } else if (!res.ok) {
         setSubmitError(data.error || 'ส่งไม่สำเร็จ กรุณาลองใหม่');
         setSubmitting(false);
       } else {
+        // บันทึกสำเร็จจริงทางสถาปัตยกรรม Relational Database
         setDoneRecord(data.record);
         setStep('done');
       }
     } catch {
-      setSubmitError('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+      setSubmitError('เกิดข้อผิดพลาดในการเชื่อมต่อเครือข่าย กรุณาลองใหม่อีกครั้ง');
       setSubmitting(false);
     }
   }
@@ -371,7 +357,7 @@ export default function CheckInPage() {
           <div className="ticket">
             <div className="ticket-stub">
               <div>
-                <div className="wk-label">สัปเกือบที่</div>
+                <div className="wk-label">สัปดาห์ที่</div>
                 <div className="wk-num">{week.week_number}</div>
               </div>
               <div className="stub-info">
@@ -422,7 +408,7 @@ export default function CheckInPage() {
             </div>
             <div className="ticket-divider" />
             <div className="ticket-body" style={{ textAlign: 'center', padding: '2rem 1.5rem' }}>
-              <p style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--ink)' }}>{studentName || 'ทดสอบระบบ'}</p>
+              <p style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--ink)' }}>{studentName || 'ลงทะเบียนสำเร็จ'}</p>
               <p className="mono" style={{ color: 'var(--ink-mid)', fontSize: '0.85rem', marginTop: '0.25rem' }}>{studentId}</p>
               <p className="mt-3" style={{ color: 'var(--ink-mid)', fontSize: '0.9rem' }}>
                 ระบบได้แนบภาพถ่ายหลักฐานของคุณส่งให้อาจารย์ผู้สอนเรียบร้อยแล้ว สามารถปิดหน้านี้ได้เลยครับ
@@ -437,14 +423,14 @@ export default function CheckInPage() {
             <div className="ticket-stub" style={{ justifyContent: 'center' }}>
               <span className="status-dot ok" />
               <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--marquee-soft)' }}>
-                อุปกรณ์นี้เคยเช็คชื่อไปแล้ว
+                รหัสนักศึกษานี้เช็คชื่อแล้ว
               </span>
             </div>
             <div className="ticket-divider" />
             <div className="ticket-body" style={{ padding: '2rem 1.5rem' }}>
               <p style={{ color: 'var(--ink)', fontWeight: 600 }}>ล้มเหลว: ตรวจพบข้อมูลการส่งซ้ำ</p>
               <p className="text-muted mt-1" style={{ fontSize: '0.88rem' }}>
-                อุปกรณ์นี้ได้ส่งภาพหลักฐานการเช็คชื่อเข้าเรียนในสัปดาห์นี้ไปแล้ว ไม่สามารถส่งซ้ำได้ครับ
+                รหัสนักศึกษานี้ได้ทำการส่งข้อมูลและบันทึกเวลาเข้าเรียนในสัปดาห์นี้ไปเรียบร้อยแล้ว ไม่สามารถส่งคำตอบซ้ำได้อีกครับ
               </p>
             </div>
           </div>
