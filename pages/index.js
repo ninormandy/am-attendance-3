@@ -108,17 +108,14 @@ export default function CheckInPage() {
     setPhotoPreview(null);
   };
 
-  // Move from Photo to ID Entry
   const handleConfirmPhoto = (e) => {
     e.preventDefault();
     if (!photo) return alert('กรุณาถ่ายรูปภาพหลักฐานก่อนเข้าหน้าถัดไป');
     setStep('entry'); 
   };
 
-  // Handle Student ID Lookup
   async function handleLookup(e) {
     e.preventDefault();
-    
     if (!week || !week.id) {
       alert('ระบบกำลังดึงข้อมูลเซสชันสัปดาห์เรียน กรุณารอสักครู่แล้วกดใหม่อีกครั้งครับ');
       return;
@@ -146,7 +143,6 @@ export default function CheckInPage() {
     }
   }
 
-  // Final Multipart Form Submission
   async function submitAnswer(secondsUsedOverride, answerOverride) {
     if (submitting) return;
     setSubmitting(true);
@@ -174,25 +170,30 @@ export default function CheckInPage() {
       });
       const data = await res.json();
       
-      // 🎯 แก้ไขบั๊กระเบิดสเตต: แยกแยะสถานะการตรวจสอบความซ้ำซ้อนอย่างรัดกุมผ่าน HTTP Status และ Data Code อย่างเป็นระบบ
+      // 🎯 [FIXED BY DR.HACKERMAN] สถาปัตยกรรมการคัดกรองแบบแบ่งแยกเด็ดขาด ไม่ใช้ตรรกะเหมาเข่ง
+      if (res.status === 200 || res.status === 201) {
+        if (data.success === true || data.ok === true) {
+          // บันทึกสำเร็จจริงผ่าน Relational Database
+          setDoneRecord(data.record);
+          setStep('done');
+          return; // ยุติการทำงานทันที ป้องกันการหลุดไหลไปเงื่อนไขอื่น
+        }
+      }
+      
+      // จัดการเคสทุจริต/ส่งซ้ำเฉพาะเจาะจง (HTTP 409 Conflict)
       if (res.status === 409 || data.code === 'DUPLICATE_ATTENDANCE') {
         setStep('already');
-        setSubmitting(false);
       } else if (res.status === 403) {
         setSubmitError(data.error || 'การเช็คชื่อถูกปิดแล้ว กรุณาติดต่ออาจารย์ผู้สอน');
         setStep('closed');
-        setSubmitting(false);
-      } else if (!res.ok || data.success === false) {
-        setSubmitError(data.error || 'ส่งไม่สำเร็จ กรุณาลองใหม่');
-        setSubmitting(false);
       } else {
-        // บันทึกสำเร็จจริง (HTTP 200/201 และ success === true)
-        setDoneRecord(data.record);
-        setStep('done');
+        // เคสข้อผิดพลาดทั่วไป เช่น อัปโหลดไฟล์พัง หรือเซิร์ฟเวอร์ขัดข้อง
+        setSubmitError(data.error || 'ส่งไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
       }
     } catch {
       setSubmitError('เกิดข้อผิดพลาดในการเชื่อมต่อเครือข่าย กรุณาลองใหม่อีกครั้ง');
-      setSubmitting(false);
+    } finally {
+      setSubmitting(false); // ปลดล็อกปุ่มในกรณีที่ระบบ Error เพื่อให้เด็กกดส่งใหม่ได้
     }
   }
 
