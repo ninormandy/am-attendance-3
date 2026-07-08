@@ -1,18 +1,16 @@
 // pages/api/attendance/submit.js
-// 🛡️ Production-Grade ES Modules Architecture & Forensic Engine by Dr.Hackerman
+// 🛡️ Bulletproof Production Patch by Dr.Hackerman - Fixed maybeSingle() Trap
 import { supabaseAdmin } from '../../../lib/supabaseAdmin';
 import formidable from 'formidable';
 import crypto from 'crypto';
 import fs from 'fs';
 
-// ยุติระบบ Middleware พื้นฐาน เพื่อให้ Formidable ควบคุมข้อมูลภาพมัลติพาร์ทได้เต็มประสิทธิภาพ
 export const config = {
   api: {
     bodyParser: false,
   },
 };
 
-// Helper Utility: คัดกรองและสกัดค่าสำหรับฟิลด์ข้อความเพื่อป้องกันสภาวะ Array Type Mismatch
 function extractValue(field) {
   if (Array.isArray(field)) return field[0];
   return field;
@@ -24,26 +22,21 @@ export default async function handler(req, res) {
     return res.status(456).json({ success: false, error: 'Method not allowed' });
   }
 
-  // 🛡️ Database Context Safe-Guard: ตรวจสอบความพร้อมของ instance ก่อนเริ่ม Data Pipeline
   if (!supabaseAdmin || typeof supabaseAdmin.from !== 'function') {
     return res.status(500).json({ 
       success: false, 
-      error: 'ระบบหลังบ้านไม่สามารถเข้าถึงฐานข้อมูลได้ กรุณาตรวจสอบการ Export ในไฟล์ lib/supabaseAdmin.js' 
+      error: 'Database context layer connection failure.' 
     });
   }
 
-  // 🌐 Forensic Acquistion: ดักจับพิกัดไอพีเครือข่ายเน็ตเวิร์ก (รองรับสถาปัตยกรรม Vercel Proxy Gateway)
   const forwarded = req.headers['x-forwarded-for'];
   const ipAddress = forwarded ? forwarded.split(',')[0].trim() : req.socket.remoteAddress;
-
-  // 📱 Forensic Acquisition: ดักจับข้อมูลอัตลักษณ์ฮาร์ดแวร์และเวอร์ชันบราวเซอร์ (User-Agent)
   const userAgent = req.headers['user-agent'] || 'Unknown Device';
 
-  // ตั้งค่าสภาพแวดล้อมให้ปลอดภัยต่อข้อจำกัด Read-only Filesystem ของระบบ Serverless
   const form = formidable({
-    uploadDir: '/tmp', // บังคับเขียนไฟล์ลงพื้นที่หน่วยความจำชั่วคราวเท่านั้น
+    uploadDir: '/tmp',
     keepExtensions: true,
-    maxFileSize: 15 * 1024 * 1024 // ล็อกขนาดรูปถ่ายไม่เกิน 15MB ป้องกันระบบหน่วงช้า
+    maxFileSize: 15 * 1024 * 1024 
   });
   
   form.parse(req, async (err, fields, files) => {
@@ -51,7 +44,6 @@ export default async function handler(req, res) {
       return res.status(500).json({ success: false, error: 'Failed parsing file data pipeline stream' });
     }
 
-    // สกัดข้อมูลออกจาก Formidable Fields อย่างรัดกุม
     const week_id_raw = extractValue(fields.week_id);
     const student_id_raw = extractValue(fields.student_id);
     const answer_raw = extractValue(fields.answer);
@@ -68,29 +60,32 @@ export default async function handler(req, res) {
     const tempFilePath = rawPhotoFile.filepath;
 
     try {
-      // ด่านที่ 1: ตรวจสอบสถานะการเปิดคาบเรียน (Week Session Gating)
+      // A. Week Session Gating
       const { data: week } = await supabaseAdmin.from('weeks').select('status').eq('id', week_id).maybeSingle();
       if (!week || week.status !== 'open') {
         if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
         return res.status(403).json({ success: false, error: 'การเช็คชื่อถูกปิดแล้ว' });
       }
 
-      // ด่านที่ 2: ตรวจสอบรายชื่อผู้มีสิทธิ์เรียน (Enrollment Check)
+      // B. Enrollment Check
       const { data: student } = await supabaseAdmin.from('students').select('student_id, name').eq('student_id', student_id).maybeSingle();
       if (!student) {
         if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
         return res.status(404).json({ success: false, error: 'ไม่พบรหัสนักศึกษานี้ในระบบฐานข้อมูล' });
       }
 
-      // ด่านที่ 3: ดักจับการส่งข้อมูลซ้ำผ่านตารางหลัก (Student ID Duplication Gate Check)
-      const { data: existingRecord } = await supabaseAdmin
+      // 🛡️ [CRITICAL FIX BY DR.HACKERMAN] เปลี่ยนมาเช็ค id ข้างในวัตถุอย่างเจาะจง ป้องกันสภาวะออบเจกต์ว่างปลอมตัวเป็น True
+      const { data: existingRecord, error: checkError } = await supabaseAdmin
         .from('attendance_records')
         .select('id')
         .eq('week_id', week_id)
         .eq('student_id', student.student_id)
         .maybeSingle();
 
-      if (existingRecord) {
+      if (checkError) throw checkError;
+
+      // บล็อกเฉพาะเมื่อตรวจพบไอดีบันทึกอยู่จริง ๆ เท่านั้น ไม่เช็คแบบเหมาเข่งวัตถุ
+      if (existingRecord && existingRecord.id) {
         if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
         return res.status(409).json({ 
           success: false, 
@@ -99,11 +94,10 @@ export default async function handler(req, res) {
         });
       }
 
-      // 🧠 [DIGITAL FORENSICS 1] ถอดรหัสลับของไฟล์ภาพถ่ายจริงด้วยระบบสัญญา Non-blocking Promises
+      // 🧠 [DIGITAL FORENSICS 1] Cryptographic Image Hashing
       const fileBuffer = await fs.promises.readFile(tempFilePath);
       const imageHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
-      // ตรวจสอบพฤติกรรมรูปถ่ายซ้ำเวียนเทียนส่งในคาบเรียนเดียวกัน
       const { data: duplicateImage } = await supabaseAdmin
         .from('attendance_records')
         .select('student_id')
@@ -111,7 +105,6 @@ export default async function handler(req, res) {
         .eq('image_hash', imageHash)
         .maybeSingle();
 
-      // ตรวจสอบพฤติกรรมความซ้ำซ้อนของไอพีเพื่อตรวจจับกรณีใช้เครื่องเดียวสลับแท็บส่งแทนเพื่อน
       const { data: duplicateIP } = await supabaseAdmin
         .from('attendance_records')
         .select('student_id')
@@ -119,19 +112,18 @@ export default async function handler(req, res) {
         .eq('ip_address', ipAddress)
         .maybeSingle();
 
-      // วิเคราะห์สถิติดิจิทัลเพื่อผูกแท็กแจ้งเตือนไปยังหน้าจอควบคุมของแอดมิน (Admin Flags Matrix)
       let adminVerificationStatus = 'pending';
       let adminVerificationNotes = 'CLEAN: อัตลักษณ์ดิจิทัลปกติ';
 
-      if (duplicateImage) {
+      if (duplicateImage && duplicateImage.student_id) {
         adminVerificationStatus = 'flagged';
         adminVerificationNotes = `🚨 FLAGGED: ไฟล์รูปภาพซ้ำกับรหัสนักศึกษา ${duplicateImage.student_id}`;
-      } else if (duplicateIP) {
+      } else if (duplicateIP && duplicateIP.student_id) {
         adminVerificationStatus = 'suspicious';
         adminVerificationNotes = `⚠️ SUSPICIOUS: พิกัดไอพีเครือข่ายซ้ำกับรหัสนักศึกษา ${duplicateIP.student_id}`;
       }
 
-      // --- กระบวนการสตรีมไฟล์ขึ้นคลาวด์จัดเก็บข้อมูล (Supabase Storage Buckets) ---
+      // C. Stream to Storage
       const originalName = rawPhotoFile.originalFilename || 'photo.jpg';
       const fileExtension = originalName.split('.').pop() || 'jpg';
       const storagePath = `${week_id}/${student.student_id}_${Date.now()}.${fileExtension}`;
@@ -145,10 +137,9 @@ export default async function handler(req, res) {
 
       if (uploadErr) throw new Error(`Storage upload crash: ${uploadErr.message}`);
 
-      // ดึงลิงก์ตำแหน่ง URL สาธารณะของไฟล์รูปหลักฐานเพื่อนำไปบันทึกลงฐานข้อมูลข้อมูล
       const { data: { publicUrl } } = supabaseAdmin.storage.from('attendance-proofs').getPublicUrl(storagePath);
 
-      // --- ลงบันทึกประวัติรอยเท้าดิจิทัลและธุรกรรมควิซเช็คชื่อเข้าตารางหลัก ---
+      // E. Database Insert
       const { data: record, error: insErr } = await supabaseAdmin
         .from('attendance_records')
         .insert({
@@ -170,12 +161,11 @@ export default async function handler(req, res) {
       if (insErr) {
         if (insErr.code === '23505') {
           if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
-          return res.status(409).json({ success: false, code: 'DUPLICATE_ATTENDANCE', error: 'รหัสนักศึกษานี้หรืออุปกรณ์นี้ได้บันทึกเวลาไปแล้ว' });
+          return res.status(409).json({ success: false, code: 'DUPLICATE_ATTENDANCE', error: 'รหัสนักศึกษานี้ได้บันทึกเวลาไปแล้ว' });
         }
         throw insErr;
       }
 
-      // เคลียร์พื้นที่ไฟล์ขยะออกจากหน่วยความจำดิสก์ชั่วคราวของเซิร์ฟเวอร์ (Garbage Collection)
       if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
 
       return res.status(201).json({ success: true, record });
