@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 
-const CHECKIN_SECONDS = 300; // วินโดว์เวลาทำควิซ 5 นาที
+const CHECKIN_SECONDS = 300; // 5-minute quiz window
 
 function formatTime(seconds) {
   const m = Math.floor(seconds / 60);
@@ -37,7 +37,7 @@ export default function CheckInPage() {
   const answerRef = useRef('');
   useEffect(() => { answerRef.current = answer; }, [answer]);
 
-  // Helper utility: คำนวณรหัสฮาร์ดแวร์เฉพาะตัวของอุปกรณ์ (Client-side Fingerprint)
+  // Helper utility: Compute client-side hardware fingerprint
   function getDeviceFingerprint() {
     if (typeof window === 'undefined') return '';
     const hardwareToken = 
@@ -50,10 +50,8 @@ export default function CheckInPage() {
 
   // Load active week session
   useEffect(() => {
-    // 🛠️ 1. TEMPORARY DISABLED DEVICE RESTRICTION FEATURE (BY DR.HACKERMAN)
-    // ทำการข้ามและปิดการตรวจสอบตัวตนของ PC/Desktop ชั่วคราวเพื่อให้นักศึกษาใช้ทุกอุปกรณ์เข้าเรียนได้
-    /* 
-    const ua = navigator.userAgent.toLowerCase();
+    // 🛡️ ANTI-PC GATING MECHANISM (TEMPORARILY DISABLED)
+    /* const ua = navigator.userAgent.toLowerCase();
     const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(ua);
     const hasTouchCapabilities = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     
@@ -66,19 +64,19 @@ export default function CheckInPage() {
     fetch('/api/attendance/current')
       .then((r) => r.json())
       .then((data) => {
-        // 🛡️ ป้องกันบั๊ก Race Condition: ตรวจสอบความสมบูรณ์ของโครงสร้างข้อมูลก่อนใช้งานเสมอ
-        if (data.open && data.week && data.week.id) {
+        if (data.open) {
           setWeek(data.week);
           
-          // 🎯 ใช้ข้อมูลสดจาก API (data.week.id) แทนค่าจาก state (week.id) เพื่อเลี่ยงค่าโมฆะ (undefined)
+          // 🛡️ DEVICE RESUBMISSION LOCKOUT (TEMPORARILY DISABLED)
+          /*
           const deviceLock = localStorage.getItem(`submitted_week_${data.week.id}`);
-          
-          // เจาะจงเช็คประเภทสตริง 'true' เท่านั้น เพื่อความแม่นยำสูง
-          if (deviceLock === 'true') {
+          if (deviceLock) {
             setStep('already');
           } else {
             setStep('capture');
           }
+          */
+          setStep('capture');
         } else {
           setStep('closed');
         }
@@ -86,7 +84,7 @@ export default function CheckInPage() {
       .catch(() => setStep('closed'));
   }, []);
 
-  // Countdown timer — ทำงานเมื่อเข้าสู่สเตจทำควิซ 'quiz' เท่านั้น
+  // Countdown timer — ONLY starts when step becomes 'quiz'
   useEffect(() => {
     if (step !== 'quiz') return;
     setTimeLeft(CHECKIN_SECONDS);
@@ -124,7 +122,7 @@ export default function CheckInPage() {
     setPhotoPreview(null);
   };
 
-  // ย้ายจากขั้นตอนถ่ายรูปไปหน้าตรวจสอบรหัสประจำตัว
+  // Move from Photo to ID Entry
   const handleConfirmPhoto = (e) => {
     e.preventDefault();
     if (!photo) return alert('กรุณาถ่ายรูปภาพหลักฐานก่อนเข้าหน้าถัดไป');
@@ -134,22 +132,18 @@ export default function CheckInPage() {
   // Handle Student ID Lookup
   async function handleLookup(e) {
     e.preventDefault();
-    
-    // 🛡️ ป้องกันบั๊กดึงค่า Undefined Key: หากเซสชันยังโหลดไม่เสร็จสิ้น ห้ามทำรายการต่อเด็ดขาด
-    if (!week || !week.id) {
-      alert('ระบบกำลังดึงข้อมูลเซสชันสัปดาห์เรียน กรุณารอสักครู่แล้วกดใหม่อีกครั้งครับ');
-      return;
-    }
-
     setLookupError('');
     setLooking(true);
 
+    // 🛡️ LOOKUP RESUBMISSION CHECK (TEMPORARILY DISABLED)
+    /*
     const deviceLock = localStorage.getItem(`submitted_week_${week.id}`);
-    if (deviceLock === 'true') {
+    if (deviceLock) {
       setStep('already');
       setLooking(false);
       return;
     }
+    */
 
     try {
       const res = await fetch(`/api/attendance/lookup?student_id=${encodeURIComponent(inputId.trim())}`);
@@ -197,9 +191,10 @@ export default function CheckInPage() {
       });
       const data = await res.json();
       
-      // 🛡️ แก้ไขเงื่อนไขการตรวจจับสิทธิ์ซ้ำซ้อนให้มีความเจาะจงเฉพาะตัวแปร error เพื่อเลี่ยงการตรวจจับคำตอบปกติผิดพลาด
-      if (res.status === 409 || (data.success === false && data.error?.includes('เช็คชื่อไปแล้ว'))) {
-        localStorage.setItem(`submitted_week_${week.id}`, 'true');
+      if (res.status === 409 || data.error?.includes('เช็คชื่อไปแล้ว')) {
+        // Even if API reports a duplicate, we only display the block if desired.
+        // Keeping localStorage setting commented out so client device stays clean.
+        // localStorage.setItem(`submitted_week_${week.id}`, 'true');
         setStep('already');
       } else if (res.status === 403) {
         setSubmitError('การเช็คชื่อถูกปิดแล้ว กรุณาติดต่ออาจารย์ผู้สอน');
@@ -208,7 +203,7 @@ export default function CheckInPage() {
         setSubmitError(data.error || 'ส่งไม่สำเร็จ กรุณาลองใหม่');
         setSubmitting(false);
       } else {
-        localStorage.setItem(`submitted_week_${week.id}`, 'true');
+        // localStorage.setItem(`submitted_week_${week.id}`, 'true');
         setDoneRecord(data.record);
         setStep('done');
       }
@@ -238,19 +233,22 @@ export default function CheckInPage() {
         {/* ── LOADING ── */}
         {step === 'loading' && <p className="text-muted">กำลังโหลด…</p>}
 
-        {/* ── 🛡️ PC LOCKOUT OVERLAY VIEW (ปิดใช้งานชั่วคราว จะไม่แสดงสเตจนี้) ── */}
+        {/* ── 🛡️ PC LOCKOUT BLOCKED OVERLAY VIEW ── */}
         {step === 'pc_blocked' && (
           <div className="ticket" style={{ maxWidth: 420, textAlign: 'center' }}>
             <div className="ticket-stub" style={{ justifyContent: 'center' }}>
               <span className="status-dot live" style={{ backgroundColor: '#ef4444' }} />
               <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ef4444' }}>
-                Device Restriction Active
+                อุปกรณ์นี้ไม่สามารถใช้ได้ / Device Blocked
               </span>
             </div>
             <div className="ticket-divider" />
             <div className="ticket-body" style={{ padding: '2.5rem 1.5rem' }}>
               <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📱</div>
-              <h3 style={{ marginBottom: '0.5rem' }}>กรุณาใช้สมาร์ทโฟนเข้าใช้งาน</h3>
+              <h3 style={{ marginBottom: '0.5rem', color: 'var(--ink)' }}>ไม่สามารถใช้งานผ่าน Laptop หรือ Mac ได้</h3>
+              <p style={{ color: 'var(--ink-mid)', fontSize: '0.9rem', lineHeight: 1.5 }}>
+                กรุณาใช้โทรศัพท์มือถือสมาร์ทโฟนหรือแท็บเล็ตเปิดลิงก์นี้เพื่อดำเนินการเช็คชื่อเข้าเรียนครับ
+              </p>
             </div>
           </div>
         )}
@@ -284,9 +282,9 @@ export default function CheckInPage() {
               <div className="stub-info">
                 <div className="stub-title">
                   <span className="status-dot live" />
-                  ขั้นตอนที่ 1: ถ่ายภาพตนเองในชั้นเรียน
+                  ขั้นตอนที่ 1: ถ่ายภาพตนเองกับบรรยากาศภายในห้องเรียน โดยต้องถ่ายติดอาจารย์ผู้สอนเท่านั้น จึงจะเช็คชื่อผ่าน
                 </div>
-                <div className="stub-meta">กรุณาแนบรูปภาพเพื่อเข้าทำควิซประจำสัปดาห์</div>
+                <div className="stub-meta">ต้องถ่ายรูปภาพเพื่อทำควิซ</div>
               </div>
             </div>
             <div className="ticket-divider" />
@@ -294,7 +292,7 @@ export default function CheckInPage() {
               {!photoPreview ? (
                 <div style={{ padding: '1.5rem 0' }}>
                   <p style={{ marginBottom: '1.5rem', color: 'var(--ink-mid)' }}>
-                    กรุณากดปุ่มด้านล่างเพื่อเปิดกล้อง และถ่ายภาพเซลฟี่เพื่อยืนยันตัวตนในห้องเรียน
+                    กรุณากดปุ่มด้านล่างเพื่อเปิดกล้อง และถ่ายภาพเซลฟี่ให้เห็นอาจารย์ผู้สอนเพื่อเป็นหลักฐานการเข้าเรียน
                   </p>
                   <label className="btn btn-marquee btn-full" style={{ display: 'inline-block', cursor: 'pointer', textAlign: 'center' }}>
                     📷 เปิดกล้องถ่ายภาพ
@@ -319,7 +317,7 @@ export default function CheckInPage() {
                   </p>
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <button type="button" className="btn btn-ghost-dark btn-full" onClick={clearPhotoAndRetake}>
-                      🔄 ถ่ายใหม่
+                      🔄 ถ่ายใหม่ (Retake)
                     </button>
                     <button type="button" className="btn btn-marquee btn-full" onClick={handleConfirmPhoto}>
                       ถัดไป: กรอกรหัส →
@@ -331,7 +329,7 @@ export default function CheckInPage() {
           </div>
         )}
 
-        {/* ── STEP 2: ENTRY ── */}
+        {/* ── STEP 2: ENTRY (student ID input) ── */}
         {step === 'entry' && week && (
           <div className="ticket">
             <div className="ticket-stub">
@@ -428,7 +426,7 @@ export default function CheckInPage() {
               <p style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--ink)' }}>{studentName}</p>
               <p className="mono" style={{ color: 'var(--ink-mid)', fontSize: '0.85rem', marginTop: '0.25rem' }}>{studentId}</p>
               <p className="mt-3" style={{ color: 'var(--ink-mid)', fontSize: '0.9rem' }}>
-                ระบบได้บันทึกประวัติการเข้าเรียนของคุณเรียบร้อยแล้ว สามารถปิดหน้านี้ได้เลยครับ
+                ระบบได้แนบภาพถ่ายหลักฐานของคุณส่งให้อาจารย์ผู้สอนเรียบร้อยแล้ว สามารถปิดหน้านี้ได้เลยครับ
               </p>
             </div>
           </div>
@@ -447,7 +445,7 @@ export default function CheckInPage() {
             <div className="ticket-body" style={{ padding: '2rem 1.5rem' }}>
               <p style={{ color: 'var(--ink)', fontWeight: 600 }}>ล้มเหลว: ตรวจพบข้อมูลการส่งซ้ำ</p>
               <p className="text-muted mt-1" style={{ fontSize: '0.88rem' }}>
-                อุปกรณ์นี้ได้ทำการลงทะเบียนเช็คชื่อเข้าเรียนในสัปดาห์นี้ไปแล้ว ไม่สามารถส่งข้อมูลซ้ำได้ครับ
+                อุปกรณ์นี้ได้ส่งภาพหลักฐานการเช็คชื่อเข้าเรียนในสัปดาห์นี้ไปแล้ว ไม่สามารถส่งซ้ำได้ครับ
               </p>
             </div>
           </div>
