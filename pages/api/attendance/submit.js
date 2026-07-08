@@ -36,6 +36,18 @@ export default async function handler(req, res) {
     const { data: student } = await supabaseAdmin.from('students').select('student_id, name').eq('student_id', student_id.trim()).maybeSingle();
     if (!student) return res.status(404).json({ error: 'ไม่พบรหัสนักเรียนนี้ในระบบฐานข้อมูล' });
 
+    // 🛡️ CUSTOM FILTER: BLOCK EXISTING STUDENT ID RESUBMISSIONS
+    const { data: existingRecord } = await supabaseAdmin
+      .from('attendance_records')
+      .select('id')
+      .eq('week_id', week_id)
+      .eq('student_id', student.student_id)
+      .maybeSingle();
+
+    if (existingRecord) {
+      return res.status(409).json({ error: 'รหัสนักศึกษานี้ได้ทำการเช็คชื่อในสัปดาห์นี้ไปแล้ว' });
+    }
+
     // C. Stream file binary to Supabase Cloud Buckets
     const fileBuffer = fs.readFileSync(rawPhotoFile.filepath);
     const fileExtension = rawPhotoFile.originalFilename.split('.').pop();
@@ -62,15 +74,16 @@ export default async function handler(req, res) {
         student_name: student.name,
         answer: answer ? String(answer).trim() : null,
         device_fingerprint: fingerprint,
-        photo_url: publicUrl, // Save photo reference link destination points
-        verification_status: 'pending' // Initialize standard validation audit gate
+        photo_url: publicUrl, 
+        verification_status: 'pending' 
       })
       .select()
       .single();
 
     if (insErr) {
+      // Catching general unique constraint fails if your schema blocks device fingerprints too
       if (insErr.code === '23505') {
-        return res.status(409).json({ error: 'อุปกรณ์นี้หรือรหัสนักเรียนนี้ได้ใช้บันทึกเวลาสัปดาห์นี้ไปแล้ว' });
+        return res.status(409).json({ error: 'รหัสนักศึกษานี้หรืออุปกรณ์นี้ได้บันทึกเวลาไปแล้ว' });
       }
       return res.status(500).json({ error: insErr.message });
     }
