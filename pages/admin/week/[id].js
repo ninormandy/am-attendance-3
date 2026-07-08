@@ -1,5 +1,5 @@
 // pages/admin/weeks/[id].js
-// 🛡️ Bulletproof Forensics Telemetry Dashboard by Dr.Hackerman
+// 🛡️ Live Forensics Telemetry Dashboard v2 by Dr.Hackerman
 import { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
@@ -39,7 +39,6 @@ export default function WeekDetailPage() {
     return () => clearInterval(intervalRef.current);
   }, [id]);
 
-  // ฟังก์ชันรองรับการ Override สถานะแบบแมนนวลโดยผู้สอน (คงคอลัมน์ Approve/Reject ไว้ตามคำสั่ง)
   async function handleUpdateStatus(recordId, targetStatus) {
     try {
       const res = await fetch('/api/admin/verify', {
@@ -219,8 +218,7 @@ export default function WeekDetailPage() {
                   <th style={{ width: '110px' }}>เวลาเช็คชื่อ</th>
                   <th style={{ width: '90px' }}>ภาพหลักฐาน</th>
                   <th style={{ minWidth: '220px' }}>คำตอบ</th>
-                  {/* 🎯 แสดงหัวคอลัมน์ระบุการเรียกข้อมูลจากฟิลด์จริงของตาราง public.attendance_records */}
-                  <th style={{ minWidth: '260px' }}>บันทึกพฤติกรรม (verification_notes)</th>
+                  <th style={{ minWidth: '260px' }}>ข้อสังเกต</th>
                   <th style={{ width: '160px', textAlign: 'center' }}>สถานะการตรวจสอบ</th>
                 </tr>
               </thead>
@@ -240,11 +238,11 @@ export default function WeekDetailPage() {
                     style={{
                       backgroundColor:
                         r.verification_status === 'rejected'
-                          ? 'rgba(239, 68, 68, 0.15)' // ไฮไลท์แดงเข้มเมื่อแอดมินคลิกสั่งปฏิเสธแมนนวล
+                          ? 'rgba(239, 68, 68, 0.15)'
                           : r.verification_status === 'flagged'
-                          ? 'rgba(239, 68, 68, 0.06)' // ไฮไลท์แดงเรื่อ ๆ เมื่อแบคเอนด์ตรวจพบรูปถ่ายเวียนเทียนซ้ำ
+                          ? 'rgba(239, 68, 68, 0.06)'
                           : r.verification_status === 'suspicious'
-                          ? 'rgba(245, 158, 11, 0.06)' // ไฮไลท์ส้มเรื่อ ๆ เมื่อแบคเอนด์ตรวจพบไอพีชนกัน
+                          ? 'rgba(245, 158, 11, 0.06)'
                           : 'inherit'
                     }}
                   >
@@ -285,18 +283,20 @@ export default function WeekDetailPage() {
                       {r.answer || <span className="text-muted">—</span>}
                     </td>
 
-                    {/* 🎯 [EXACT FILED MAPPING] ดึงค่าข้อความสรุปคดีสืบสวนทุจริตจากคอลัมน์ดั้งเดิมมาแสดงผล */}
+                    {/* 🎯 [EXACT TEXT RESOLUTION] แก้ไขตรรกะตัวเช็ค: แสดงสายตรงจากคีย์ Supabase จริงเท่านั้น ห้ามลวงสเตต */}
                     <td style={{ 
                       fontSize: '0.88rem', 
-                      fontWeight: r.verification_status !== 'pending' && r.verification_status !== 'approved' ? '600' : 'normal',
+                      fontWeight: (r.verification_notes || r.verificationNotes) ? '600' : 'normal',
                       color: r.verification_status === 'flagged' ? '#ef4444' : r.verification_status === 'suspicious' ? '#f59e0b' : 'inherit'
                     }}>
-                      {r.verification_notes || r.verificationNotes || (
-                        <span className="text-muted" style={{ fontStyle: 'italic' }}>CLEAN: ปกติ</span>
+                      {/* บังคับให้อ่านจากค่าจริงใน Database ตรง ๆ หากไม่มีค่าจริง ๆ ค่อยขึ้นตัวหนังสือสีจางว่าปกติ */}
+                      {(r.verification_notes || r.verificationNotes) ? (
+                        r.verification_notes || r.verificationNotes
+                      ) : (
+                        <span className="text-muted" style={{ fontStyle: 'italic', fontWeight: 'normal' }}>CLEAN: ปกติ</span>
                       )}
                     </td>
 
-                    {/* คอลัมน์ปุ่ม Approve / Reject ได้รับการปกป้องและจัดวางตำแหน่งท้ายตารางอย่างมั่นคง */}
                     <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
                       {r.verification_status === 'pending' || r.verification_status === 'flagged' || r.verification_status === 'suspicious' ? (
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
