@@ -1,26 +1,18 @@
 // pages/api/attendance/submit.js
-// 🛡️ Bulletproof Module Resolution & Serverless Patch by Dr.Hackerman
-const crypto = require('crypto');
-const formidable = require('formidable');
-const fs = require('fs');
+// 🛡️ Production-Grade ES Modules Architecture & Forensic Engine by Dr.Hackerman
+import { supabaseAdmin } from '../../../lib/supabaseAdmin';
+import formidable from 'formidable';
+import crypto from 'crypto';
+import fs from 'fs';
 
-// 🎯 ANTI-UNDEFINED SAFEGUARD: การันตีการดึงโมดูลเชื่อมฐานข้อมูลในสภาพแวดล้อม Serverless คลาวด์
-let supabaseAdmin = null;
-try {
-  const supabaseModule = require('../../../lib/supabaseAdmin');
-  supabaseAdmin = supabaseModule.supabaseAdmin || supabaseModule.default || supabaseModule;
-} catch (pathError) {
-  console.error("🚨 Path Error: ไม่พบไฟล์ supabaseAdmin กรุณาตรวจสอบตำแหน่งโฟลเดอร์ ../../../lib/");
-}
-
-// ยุติระบบ Middleware พื้นฐาน เพื่อให้ Formidable ควบคุม Multipart Stream เต็มประสิทธิภาพ
+// ยุติระบบ Middleware พื้นฐาน เพื่อให้ Formidable ควบคุมข้อมูลภาพมัลติพาร์ทได้เต็มประสิทธิภาพ
 export const config = {
   api: {
     bodyParser: false,
   },
 };
 
-// Helper Function: คัดกรองค่ากรณีฟิลด์ข้อความถูกแปรสภาพเป็น Array บนคลาวด์บราวเซอร์มือถือ
+// Helper Utility: คัดกรองและสกัดค่าสำหรับฟิลด์ข้อความเพื่อป้องกันสภาวะ Array Type Mismatch
 function extractValue(field) {
   if (Array.isArray(field)) return field[0];
   return field;
@@ -32,26 +24,26 @@ export default async function handler(req, res) {
     return res.status(456).json({ success: false, error: 'Method not allowed' });
   }
 
-  // ตรวจสอบอินสแตนซ์ Supabase ก่อนเริ่มประมวลผลธุรกรรมข้อมูล
+  // 🛡️ Database Context Safe-Guard: ตรวจสอบความพร้อมของ instance ก่อนเริ่ม Data Pipeline
   if (!supabaseAdmin || typeof supabaseAdmin.from !== 'function') {
     return res.status(500).json({ 
       success: false, 
-      error: 'ระบบหลังบ้านไม่สามารถดึงข้อมูล Configuration ของฐานข้อมูลได้ กรุณาตรวจสอบไฟล์ lib/supabaseAdmin.js' 
+      error: 'ระบบหลังบ้านไม่สามารถเข้าถึงฐานข้อมูลได้ กรุณาตรวจสอบการ Export ในไฟล์ lib/supabaseAdmin.js' 
     });
   }
 
-  // 🌐 Forensic Logs: สกัดพิกัดไอพีเครือข่ายอินเทอร์เน็ต (Vercel Proxy Edge Compliant)
+  // 🌐 Forensic Acquistion: ดักจับพิกัดไอพีเครือข่ายเน็ตเวิร์ก (รองรับสถาปัตยกรรม Vercel Proxy Gateway)
   const forwarded = req.headers['x-forwarded-for'];
   const ipAddress = forwarded ? forwarded.split(',')[0].trim() : req.socket.remoteAddress;
 
-  // 📱 Forensic Logs: สกัดข้อมูลสเปกบราวเซอร์ฮาร์ดแวร์จริง (User-Agent)
+  // 📱 Forensic Acquisition: ดักจับข้อมูลอัตลักษณ์ฮาร์ดแวร์และเวอร์ชันบราวเซอร์ (User-Agent)
   const userAgent = req.headers['user-agent'] || 'Unknown Device';
 
-  // ตั้งค่าจุดบันทึกไฟล์ชั่วคราวให้อยู่ในขอบเขต /tmp ตามข้อบังคับของพื้นที่ Cloud Vercel
+  // ตั้งค่าสภาพแวดล้อมให้ปลอดภัยต่อข้อจำกัด Read-only Filesystem ของระบบ Serverless
   const form = formidable({
-    uploadDir: '/tmp',
+    uploadDir: '/tmp', // บังคับเขียนไฟล์ลงพื้นที่หน่วยความจำชั่วคราวเท่านั้น
     keepExtensions: true,
-    maxFileSize: 15 * 1024 * 1024 // ล็อกความละเอียดภาพถ่ายสูงสุดไม่เกิน 15MB ป้องกัน Timeout
+    maxFileSize: 15 * 1024 * 1024 // ล็อกขนาดรูปถ่ายไม่เกิน 15MB ป้องกันระบบหน่วงช้า
   });
   
   form.parse(req, async (err, fields, files) => {
@@ -59,7 +51,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ success: false, error: 'Failed parsing file data pipeline stream' });
     }
 
-    // ดึงข้อมูลออกจากฟิลด์อย่างปลอดภัยและเสถียร
+    // สกัดข้อมูลออกจาก Formidable Fields อย่างรัดกุม
     const week_id_raw = extractValue(fields.week_id);
     const student_id_raw = extractValue(fields.student_id);
     const answer_raw = extractValue(fields.answer);
@@ -76,21 +68,21 @@ export default async function handler(req, res) {
     const tempFilePath = rawPhotoFile.filepath;
 
     try {
-      // A. ตรวจสอบสถานะคาบเรียนเปิดปิดระบบ (Week Session Gating)
+      // ด่านที่ 1: ตรวจสอบสถานะการเปิดคาบเรียน (Week Session Gating)
       const { data: week } = await supabaseAdmin.from('weeks').select('status').eq('id', week_id).maybeSingle();
       if (!week || week.status !== 'open') {
         if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
         return res.status(403).json({ success: false, error: 'การเช็คชื่อถูกปิดแล้ว' });
       }
 
-      // B. ตรวจสอบสิทธิ์รายชื่อวิชาเรียน (Enrollment Check)
+      // ด่านที่ 2: ตรวจสอบรายชื่อผู้มีสิทธิ์เรียน (Enrollment Check)
       const { data: student } = await supabaseAdmin.from('students').select('student_id, name').eq('student_id', student_id).maybeSingle();
       if (!student) {
         if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
-        return res.status(404).json({ success: false, error: 'ไม่พบรหัสนักศึกษาคนนี้ในระบบวิชาเรียน' });
+        return res.status(404).json({ success: false, error: 'ไม่พบรหัสนักศึกษานี้ในระบบฐานข้อมูล' });
       }
 
-      // 🛡️ ตรวจสอบการส่งซ้ำระดับฐานข้อมูลชั้นที่ 1 (Student ID Unique Gate Check)
+      // ด่านที่ 3: ดักจับการส่งข้อมูลซ้ำผ่านตารางหลัก (Student ID Duplication Gate Check)
       const { data: existingRecord } = await supabaseAdmin
         .from('attendance_records')
         .select('id')
@@ -102,16 +94,16 @@ export default async function handler(req, res) {
         if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
         return res.status(409).json({ 
           success: false, 
-          code: 'DUPLICATE_ATTENDANCE', // 🎯 ส่ง Code พิเศษเพื่อให้ระบบหน้าบ้านแยกแยะประเภท Error ได้ถูกต้องแม่นยำ ไม่สับสน
+          code: 'DUPLICATE_ATTENDANCE', 
           error: 'รหัสนักศึกษานี้ได้ทำการเช็คชื่อในสัปดาห์นี้ไปแล้ว' 
         });
       }
 
-      // 🧠 [DIGITAL FORENSICS 1] ถอดรหัสแฮชไฟล์ภาพ (Cryptographic Image Hashing)
-      const fileBuffer = fs.readFileSync(tempFilePath);
+      // 🧠 [DIGITAL FORENSICS 1] ถอดรหัสลับของไฟล์ภาพถ่ายจริงด้วยระบบสัญญา Non-blocking Promises
+      const fileBuffer = await fs.promises.readFile(tempFilePath);
       const imageHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
-      // ตรวจสอบพฤติกรรมรูปถ่ายซ้ำในคาบเรียนเดียวกัน
+      // ตรวจสอบพฤติกรรมรูปถ่ายซ้ำเวียนเทียนส่งในคาบเรียนเดียวกัน
       const { data: duplicateImage } = await supabaseAdmin
         .from('attendance_records')
         .select('student_id')
@@ -119,7 +111,7 @@ export default async function handler(req, res) {
         .eq('image_hash', imageHash)
         .maybeSingle();
 
-      // 🧠 [DIGITAL FORENSICS 2] ตรวจสอบพฤติกรรมพิกัดไอพีเครือข่ายซ้ำ
+      // ตรวจสอบพฤติกรรมความซ้ำซ้อนของไอพีเพื่อตรวจจับกรณีใช้เครื่องเดียวสลับแท็บส่งแทนเพื่อน
       const { data: duplicateIP } = await supabaseAdmin
         .from('attendance_records')
         .select('student_id')
@@ -127,7 +119,7 @@ export default async function handler(req, res) {
         .eq('ip_address', ipAddress)
         .maybeSingle();
 
-      // กำหนดสถานะรายงานสำหรับแสดงผลบน Dashboard หน้าแอดมินหลังบ้าน
+      // วิเคราะห์สถิติดิจิทัลเพื่อผูกแท็กแจ้งเตือนไปยังหน้าจอควบคุมของแอดมิน (Admin Flags Matrix)
       let adminVerificationStatus = 'pending';
       let adminVerificationNotes = 'CLEAN: อัตลักษณ์ดิจิทัลปกติ';
 
@@ -139,7 +131,7 @@ export default async function handler(req, res) {
         adminVerificationNotes = `⚠️ SUSPICIOUS: พิกัดไอพีเครือข่ายซ้ำกับรหัสนักศึกษา ${duplicateIP.student_id}`;
       }
 
-      // C. อัปโหลดกระแสข้อมูลไบนารีภาพหลักฐานขึ้นคลาวด์จัดเก็บไฟล์ (Supabase Storage Buckets)
+      // --- กระบวนการสตรีมไฟล์ขึ้นคลาวด์จัดเก็บข้อมูล (Supabase Storage Buckets) ---
       const originalName = rawPhotoFile.originalFilename || 'photo.jpg';
       const fileExtension = originalName.split('.').pop() || 'jpg';
       const storagePath = `${week_id}/${student.student_id}_${Date.now()}.${fileExtension}`;
@@ -153,10 +145,10 @@ export default async function handler(req, res) {
 
       if (uploadErr) throw new Error(`Storage upload crash: ${uploadErr.message}`);
 
-      // D. เรียกตำแหน่งลิงก์ URL สาธารณะของไฟล์ภาพหลักฐานเข้าสู่ระบบ
+      // ดึงลิงก์ตำแหน่ง URL สาธารณะของไฟล์รูปหลักฐานเพื่อนำไปบันทึกลงฐานข้อมูลข้อมูล
       const { data: { publicUrl } } = supabaseAdmin.storage.from('attendance-proofs').getPublicUrl(storagePath);
 
-      // E. ลงบันทึกประวัติรอยเท้าดิจิทัลและข้อมูลเช็คชื่อเข้าตารางหลักของแอดมิน
+      // --- ลงบันทึกประวัติรอยเท้าดิจิทัลและธุรกรรมควิซเช็คชื่อเข้าตารางหลัก ---
       const { data: record, error: insErr } = await supabaseAdmin
         .from('attendance_records')
         .insert({
@@ -183,7 +175,7 @@ export default async function handler(req, res) {
         throw insErr;
       }
 
-      // ล้างไฟล์ขยะชั่วคราวออกจากดิสก์ Serverless ทุกครั้งหลังส่งสำเร็จ (Garbage Collection)
+      // เคลียร์พื้นที่ไฟล์ขยะออกจากหน่วยความจำดิสก์ชั่วคราวของเซิร์ฟเวอร์ (Garbage Collection)
       if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
 
       return res.status(201).json({ success: true, record });
