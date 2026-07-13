@@ -78,10 +78,10 @@ async function handler(req, res) {
     // ล้างและแปลงข้อความสถานะภาษาอังกฤษให้เป็นคำไทยที่อ่านง่ายบน Excel
     let statusText = '-';
     if (present) {
-      if (rec.verification_status === 'approved') statusText = 'อนุมัติแล้ว';
-      if (rec.verification_status === 'rejected') statusText = '❌ ปฏิเสธแล้ว';
-      if (rec.verification_status === 'flagged') statusText = '🚨 ตรวจพบภาพซ้ำ';
-      if (rec.verification_status === 'suspicious') statusText = '⚠️ ตรวจพบอุปกรณ์ซ้ำ';
+      if (rec.verification_status === 'approved') statusText = 'อนุมัติ';
+      if (rec.verification_status === 'rejected') statusText = 'ปฏิเสธ';
+      if (rec.verification_status === 'flagged') statusText = 'ตรวจพบภาพซ้ำ';
+      if (rec.verification_status === 'suspicious') statusText = 'ตรวจพบอุปกรณ์ซ้ำ';
       if (rec.verification_status === 'pending') statusText = 'รอตรวจสอบ';
     }
 
